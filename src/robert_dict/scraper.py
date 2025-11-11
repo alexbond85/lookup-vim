@@ -174,8 +174,13 @@ def _extract_definitions(soup: BeautifulSoup) -> List[Dict[str, Any]]:
         category_elem = block.find('span', class_='d_cat')
         category = _clean_text(category_elem.get_text(separator=' ', strip=True)) if category_elem else ""
         
-        # Find all definition items (d_dvn class)
+        # Try to find definition items - there are two possible structures:
+        # 1. d_dvn (multiple definitions)
+        # 2. d_ptma (single definition, often for simple words)
         def_items = block.find_all('div', class_='d_dvn')
+        if not def_items:
+            # Try the alternative structure
+            def_items = block.find_all('div', class_='d_ptma')
         
         for item in def_items:
             # Extract the main definition text (d_dfn class)
