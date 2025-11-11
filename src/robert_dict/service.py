@@ -3,6 +3,8 @@
 from typing import Union
 
 from robert_dict.models import WordResult, ConjugationResult
+from robert_dict.scrapers.base import Scraper
+from robert_dict.printers.base import Printer
 
 
 class DictionaryService:

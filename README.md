@@ -153,32 +153,39 @@ Error messages are printed to stderr in JSON format.
 
 ## Development
 
+Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md) and [Architecture Documentation](ARCHITECTURE.md).
+
+### Quick Start for Developers
+
+```bash
+# Install with development dependencies
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=robert_dict --cov-report=html
+
+# Enable verbose logging
+robert-dict bien --verbose
+```
+
 ### Project Structure
 
-```
-robert-online/
-├── pyproject.toml          # Project configuration
-├── README.md               # This file
-└── src/
-    └── robert_dict/
-        ├── __init__.py     # Package initialization
-        ├── cli.py          # CLI entry point
-        └── scraper.py      # Web scraping logic
-```
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
+
+Key directories:
+- `src/robert_dict/` - Main package code
+- `tests/` - Test suite
+- `vim/` - Vim plugin (optional)
 
 ### Design Principles
 
 - **KISS (Keep It Simple, Stupid)**: Single-purpose functions, minimal abstractions
-- **Modularity**: Each function has a clear, single responsibility
-- **Extensibility**: Easy to add new features like synonyms and conjugations
-
-### Future Extensions
-
-The architecture supports easy extension for additional features:
-
-- **Synonyms**: `fetch_synonyms(word)` function stub already exists
-- **Conjugations**: `fetch_conjugations(word)` function stub already exists
-- **Antonyms**: Can be added following the same pattern
+- **Protocol-based design**: Use `typing.Protocol` for interfaces
+- **Dependency Injection**: Components receive dependencies via constructor
+- **Separation of Concerns**: Clear boundaries between scraping, formatting, and CLI
 
 ## Requirements
 

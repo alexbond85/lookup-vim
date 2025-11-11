@@ -1,14 +1,16 @@
 """Le Robert dictionary scraper implementation"""
 
 import re
+import logging
 import requests
 from bs4 import BeautifulSoup
 from typing import Union, List, Dict, Any
 
 from robert_dict.models import WordResult, Definition, ConjugationResult
+from robert_dict.constants import BASE_URL, DEFAULT_TIMEOUT
 
 
-BASE_URL = "https://dictionnaire.lerobert.com/definition"
+logger = logging.getLogger(__name__)
 
 
 class LeRobertScraper:
@@ -16,6 +18,7 @@ class LeRobertScraper:
     
     def __init__(self, timeout: int = 10):
         self.timeout = timeout
+        logger.debug(f"Initialized LeRobertScraper with timeout={timeout}s")
     
     def fetch(self, word: str) -> Union[WordResult, ConjugationResult]:
         """
@@ -31,8 +34,10 @@ class LeRobertScraper:
             ValueError: If word not found
             requests.RequestException: For network errors
         """
+        logger.debug(f"Fetching word: {word}")
         url = f"{BASE_URL}/{word}"
         soup, final_url = self._fetch_html(url)
+        logger.debug(f"Fetched URL: {final_url}")
         
         # Detect page type and handle accordingly
         if self._is_conjugation_page(final_url):

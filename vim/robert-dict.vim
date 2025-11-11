@@ -1,24 +1,68 @@
 " Robert Dictionary Vim Plugin
 " 
-" DICTIONARY LOOKUP:
-"   :RobertDict           - Look up word under cursor
-"   :RobertDict maison    - Look up specific word
-"   <leader>d             - Quick lookup word under cursor
+" ============================================================================
+" DICTIONARY LOOKUP - Multiple ways (choose your favorite):
+" ============================================================================
+"   COMMANDS:
+"     :R                    - Super short! Just :R and press Enter
+"     :Dict                 - Short and clear
+"     :RobertDict           - Full name
+"   
+"   KEYBOARD SHORTCUTS:
+"     ,,                    - Double comma (FASTEST! Already enabled)
+"     \d                    - Leader+d (default leader is \)
+"     K                     - Capital K (uncomment to enable)
+"     <F2>                  - Function key (uncomment to enable)
 "
 " Popup navigation:
 "   j/k or ↓/↑            - Scroll line by line
 "   Ctrl-d/Ctrl-u         - Page down/up
-"   q or Esc              - Close popup
+"   ANY OTHER KEY         - Closes the popup instantly!
 "
+" ============================================================================
 " READING MODE (highlight active paragraph and word):
+" ============================================================================
 "   :RobertReadingMode    - Toggle reading mode ON/OFF
-"   <leader>r             - Quick toggle (uncomment in code to enable)
+"   <leader>r             - Quick toggle (uncomment to enable)
 "
 " When reading mode is ON:
 "   - Current paragraph gets subtle background highlight
 "   - Word under cursor is highlighted across the whole file
 "   - Updates automatically as you move cursor
 "   - Only active when you explicitly enable it
+"
+" ============================================================================
+" Configuration Variables (customize these in your .vimrc)
+" ============================================================================
+
+" Maximum number of examples to show per definition (default: 2)
+if !exists('g:robert_max_examples_per_def')
+    let g:robert_max_examples_per_def = 2
+endif
+
+" Maximum number of usage examples to show (default: 3)
+if !exists('g:robert_max_usage_examples')
+    let g:robert_max_usage_examples = 3
+endif
+
+" Popup window width (default: 80)
+if !exists('g:robert_popup_width')
+    let g:robert_popup_width = 80
+endif
+
+" Popup window max height (default: 20)
+if !exists('g:robert_popup_max_height')
+    let g:robert_popup_max_height = 20
+endif
+
+" Popup window min height (default: 10)
+if !exists('g:robert_popup_min_height')
+    let g:robert_popup_min_height = 10
+endif
+
+" ============================================================================
+" Highlight Groups Setup
+" ============================================================================
 
 " Define elegant highlight groups (Apple-inspired)
 function! s:SetupHighlights()
@@ -179,166 +223,276 @@ endfunction
 " Dictionary Lookup Functions
 " ============================================================================
 
+" ============================================================================
+" Main Dictionary Lookup Function
+" ============================================================================
+"
+" This is the entry point for dictionary lookups. It:
+" 1. Determines the word to look up (from argument or cursor)
+" 2. Calls the CLI tool to fetch data
+" 3. Parses the JSON response
+" 4. Formats and displays the result in a popup
+
 function! s:ShowDefinition(...)
-    " Get the word: either from argument or under cursor
-    if a:0 > 0 && a:1 != ''
-        let word = a:1
-    else
-        let word = expand('<cword>')
-    endif
-    
+    let word = s:GetWordToLookup(a:000)
     if word == ''
         echo 'Error: No word to look up'
         return
     endif
     
+    " Fetch definition data from CLI tool
+    let json = s:FetchDefinitionData(word)
+    if empty(json)
+        return
+    endif
+    
+    " Format the result based on type
+    let lines = s:FormatDefinitionResult(json)
+    
+    " Display in popup window
+    call s:ShowPopup(lines)
+endfunction
+
+" ============================================================================
+" Helper Functions for Dictionary Lookup
+" ============================================================================
+
+" Get the word to look up: either from argument or under cursor
+function! s:GetWordToLookup(args)
+    if len(a:args) > 0 && a:args[0] != ''
+        return a:args[0]
+    else
+        return expand('<cword>')
+    endif
+endfunction
+
+" Fetch definition data from robert-dict CLI tool
+" Returns: Dictionary containing parsed JSON response, or empty dict on error
+function! s:FetchDefinitionData(word)
     " Call robert-dict with JSON format
-    let result = system('robert-dict ' . shellescape(word) . ' --format json')
+    let result = system('robert-dict ' . shellescape(a:word) . ' --format json')
     
     " Check if command failed
     if v:shell_error
-        echo 'Error: Could not fetch definition for "' . word . '"'
-        return
+        echo 'Error: Could not fetch definition for "' . a:word . '"'
+        return {}
     endif
     
     " Parse JSON
     try
-        let json = json_decode(result)
+        return json_decode(result)
     catch
         echo 'Error: Could not parse JSON response'
-        return
+        return {}
     endtry
-    
-    " Handle conjugation result
-    if has_key(json, 'type') && json.type == 'conjugation'
-        let lines = ['Conjugation: ' . json.original_word . ' → ' . json.redirected_to, '']
-        call add(lines, json.message)
-        if has_key(json, 'definition_url') && json.definition_url != v:null
-            call add(lines, '')
-            call add(lines, 'Definition: ' . json.definition_url)
-        endif
-        " Show the popup with conjugation info
-        call s:ShowPopup(lines)
-        return
-    endif
-    
-    " Format word result output
-    let lines = ['Word: ' . json.word, '']
-    
-    " Add definitions with categories
-    if has_key(json, 'definitions') && len(json.definitions) > 0
-        let current_category = ''
-        for def in json.definitions
-            " Show category if it changes
-            if has_key(def, 'category') && def.category != current_category
-                if current_category != ''
-                    call add(lines, '')
-                endif
-                call add(lines, '[' . def.category . ']')
-                let current_category = def.category
-            endif
-            
-            " Add the definition
-            if has_key(def, 'definition')
-                call add(lines, '  • ' . def.definition)
-            endif
-            
-            " Add examples (limit to 2 per definition)
-            if has_key(def, 'examples') && len(def.examples) > 0
-                let max_ex = min([len(def.examples), 2])
-                for i in range(max_ex)
-                    call add(lines, '    → ' . def.examples[i])
-                endfor
-            endif
-        endfor
-        call add(lines, '')
-    endif
-    
-    " Add usage examples (limit to first 3 for readability)
-    if has_key(json, 'usage_examples') && len(json.usage_examples) > 0
-        call add(lines, 'Usage Examples:')
-        let max_examples = min([len(json.usage_examples), 3])
-        for i in range(max_examples)
-            let example = json.usage_examples[i]
-            call add(lines, '  ' . example)
-        endfor
-        call add(lines, '')
-    endif
-    
-    " Show the popup
-    call s:ShowPopup(lines)
 endfunction
 
-function! s:ShowPopup(lines)
-    " Show in popup/floating window
-    if has('nvim')
-        " Neovim floating window positioned near cursor
-        let buf = nvim_create_buf(v:false, v:true)
-        call nvim_buf_set_lines(buf, 0, -1, v:true, a:lines)
-        
-        " Calculate window size
-        let width = 80
-        let height = min([len(a:lines), 20])
-        
-        let opts = {
-            \ 'relative': 'cursor',
-            \ 'width': width,
-            \ 'height': height,
-            \ 'row': 1,
-            \ 'col': 0,
-            \ 'style': 'minimal',
-            \ 'border': 'rounded'
-            \ }
-        
-        " Open window and enter it for scrolling
-        let win = nvim_open_win(buf, v:true, opts)
-        
-        " Set window options
-        call nvim_win_set_option(win, 'wrap', v:true)
-        call nvim_win_set_option(win, 'winhl', 'Normal:RobertPopup')
-        
-        " Set buffer options
-        setlocal buftype=nofile
-        setlocal bufhidden=wipe
-        setlocal nomodifiable
-        setlocal noswapfile
-        setlocal filetype=robert
-        
-        " Apply syntax highlighting
-        call s:ApplySyntaxHighlighting()
-        
-        " Set up key mappings to close the popup
-        nnoremap <buffer><silent> q :close<CR>
-        nnoremap <buffer><silent> <Esc> :close<CR>
-        
-        " Info message
-        echo 'Scroll: j/k/Ctrl-d/Ctrl-u | Close: q or Esc'
-    else
-        " Vim 8.2+ popup positioned near cursor (above)
-        let s:popup_id = popup_create(a:lines, {
-            \ 'line': 'cursor-1',
-            \ 'col': 'cursor',
-            \ 'pos': 'botleft',
-            \ 'moved': 'any',
-            \ 'padding': [0, 1, 0, 1],
-            \ 'border': [],
-            \ 'borderchars': ['─', '│', '─', '│', '┌', '┐', '┘', '└'],
-            \ 'minwidth': 80,
-            \ 'maxwidth': 80,
-            \ 'minheight': 10,
-            \ 'maxheight': 20,
-            \ 'scrollbar': 1,
-            \ 'wrap': 1,
-            \ 'resize': 0,
-            \ 'filter': 's:PopupFilter',
-            \ 'highlight': 'RobertPopup'
-            \ })
-        
-        " Apply text properties for syntax highlighting
-        call s:ApplyVimHighlighting(s:popup_id, a:lines)
-        
-        echo 'Scroll: j/k | Page: Ctrl-d/Ctrl-u | Close: q or Esc'
+" Format the definition result into display lines
+" Handles both word definitions and conjugation results
+function! s:FormatDefinitionResult(json)
+    " Handle conjugation result
+    if has_key(a:json, 'type') && a:json.type == 'conjugation'
+        return s:FormatConjugationResult(a:json)
     endif
+    
+    " Handle word result
+    return s:FormatWordResult(a:json)
+endfunction
+
+" Format a conjugation result
+function! s:FormatConjugationResult(json)
+    let lines = ['Conjugation: ' . a:json.original_word . ' → ' . a:json.redirected_to, '']
+    call add(lines, a:json.message)
+    
+    if has_key(a:json, 'definition_url') && a:json.definition_url != v:null
+        call add(lines, '')
+        call add(lines, 'Definition: ' . a:json.definition_url)
+    endif
+    
+    return lines
+endfunction
+
+" Format a word result with definitions and examples
+function! s:FormatWordResult(json)
+    let lines = ['Word: ' . a:json.word, '']
+    
+    " Add definitions
+    if has_key(a:json, 'definitions') && len(a:json.definitions) > 0
+        call extend(lines, s:FormatDefinitions(a:json.definitions))
+    endif
+    
+    " Add usage examples
+    if has_key(a:json, 'usage_examples') && len(a:json.usage_examples) > 0
+        call extend(lines, s:FormatUsageExamples(a:json.usage_examples))
+    endif
+    
+    return lines
+endfunction
+
+" Format definitions with categories and examples
+function! s:FormatDefinitions(definitions)
+    let lines = []
+    let current_category = ''
+    
+    for def in a:definitions
+        " Show category header if it changes
+        if has_key(def, 'category') && def.category != current_category
+            if current_category != ''
+                call add(lines, '')
+            endif
+            call add(lines, '[' . def.category . ']')
+            let current_category = def.category
+        endif
+        
+        " Add the definition text
+        if has_key(def, 'definition')
+            call add(lines, '  • ' . def.definition)
+        endif
+        
+        " Add example sentences (limited by config)
+        if has_key(def, 'examples') && len(def.examples) > 0
+            let max_ex = min([len(def.examples), g:robert_max_examples_per_def])
+            for i in range(max_ex)
+                call add(lines, '    → ' . def.examples[i])
+            endfor
+        endif
+    endfor
+    
+    call add(lines, '')
+    return lines
+endfunction
+
+" Format usage examples section
+function! s:FormatUsageExamples(examples)
+    let lines = ['Usage Examples:']
+    let max_examples = min([len(a:examples), g:robert_max_usage_examples])
+    
+    for i in range(max_examples)
+        call add(lines, '  ' . a:examples[i])
+    endfor
+    
+    call add(lines, '')
+    return lines
+endfunction
+
+" ============================================================================
+" Popup Window Display
+" ============================================================================
+"
+" Shows the formatted definition in a popup/floating window
+" Handles both Neovim (floating window) and Vim 8.2+ (popup window)
+
+function! s:ShowPopup(lines)
+    if has('nvim')
+        call s:ShowNeovimFloatingWindow(a:lines)
+    else
+        call s:ShowVimPopup(a:lines)
+    endif
+endfunction
+
+" Create and configure Neovim floating window
+function! s:ShowNeovimFloatingWindow(lines)
+    " Create buffer and populate with content
+    let buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(buf, 0, -1, v:true, a:lines)
+    
+    " Calculate window dimensions (using config variables)
+    let width = g:robert_popup_width
+    let height = min([len(a:lines), g:robert_popup_max_height])
+    
+    " Window positioning options
+    let opts = {
+        \ 'relative': 'cursor',
+        \ 'width': width,
+        \ 'height': height,
+        \ 'row': 1,
+        \ 'col': 0,
+        \ 'style': 'minimal',
+        \ 'border': 'rounded'
+        \ }
+    
+    " Open window (enter it for scrolling support)
+    let win = nvim_open_win(buf, v:true, opts)
+    
+    " Configure window appearance
+    call nvim_win_set_option(win, 'wrap', v:true)
+    call nvim_win_set_option(win, 'winhl', 'Normal:RobertPopup')
+    
+    " Configure buffer settings
+    setlocal buftype=nofile
+    setlocal bufhidden=wipe
+    setlocal nomodifiable
+    setlocal noswapfile
+    setlocal filetype=robert
+    
+    " Apply syntax highlighting
+    call s:ApplySyntaxHighlighting()
+    
+    " Set up navigation key mappings
+    call s:SetupNeovimPopupMappings()
+    
+    " Clear message when window closes
+    autocmd WinClosed <buffer> echo ''
+    
+    " Show usage message
+    echo 'Scroll: j/k/Ctrl-d/Ctrl-u | Any other key closes'
+endfunction
+
+" Set up key mappings for Neovim popup navigation
+function! s:SetupNeovimPopupMappings()
+    " Scrolling keys - keep popup open
+    nnoremap <buffer><silent> j j
+    nnoremap <buffer><silent> k k
+    nnoremap <buffer><silent> <Down> <Down>
+    nnoremap <buffer><silent> <Up> <Up>
+    nnoremap <buffer><silent> <C-d> <C-d>
+    nnoremap <buffer><silent> <C-u> <C-u>
+    
+    " Map all printable keys to close the popup
+    for key in split('abcdefghilmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:''",.<>?/~` ', '\zs')
+        execute 'nnoremap <buffer><silent> ' . key . ' :close<CR>:echo ''''<CR>'
+    endfor
+    
+    " Special keys that close popup
+    nnoremap <buffer><silent> <Esc> :close<CR>:echo ''<CR>
+    nnoremap <buffer><silent> <CR> :close<CR>:echo ''<CR>
+    nnoremap <buffer><silent> <Space> :close<CR>:echo ''<CR>
+    nnoremap <buffer><silent> <BS> :close<CR>:echo ''<CR>
+    nnoremap <buffer><silent> <Tab> :close<CR>:echo ''<CR>
+endfunction
+
+" Create and configure Vim 8.2+ popup window
+function! s:ShowVimPopup(lines)
+    let s:popup_id = popup_create(a:lines, {
+        \ 'line': 'cursor-1',
+        \ 'col': 'cursor',
+        \ 'pos': 'botleft',
+        \ 'moved': 'any',
+        \ 'padding': [0, 1, 0, 1],
+        \ 'border': [],
+        \ 'borderchars': ['─', '│', '─', '│', '┌', '┐', '┘', '└'],
+        \ 'minwidth': g:robert_popup_width,
+        \ 'maxwidth': g:robert_popup_width,
+        \ 'minheight': g:robert_popup_min_height,
+        \ 'maxheight': g:robert_popup_max_height,
+        \ 'scrollbar': 1,
+        \ 'wrap': 1,
+        \ 'resize': 0,
+        \ 'filter': 's:PopupFilter',
+        \ 'callback': 's:PopupCallback',
+        \ 'highlight': 'RobertPopup'
+        \ })
+    
+    " Apply text properties for syntax highlighting
+    call s:ApplyVimHighlighting(s:popup_id, a:lines)
+    
+    " Show usage message
+    echo 'Scroll: j/k/Ctrl-d/Ctrl-u | Any other key closes'
+endfunction
+
+" Callback when popup closes - clear the echo message
+function! s:PopupCallback(winid, result)
+    echo ''
 endfunction
 
 " Apply syntax highlighting for Neovim
@@ -411,73 +565,105 @@ function! s:ApplyVimHighlighting(winid, lines)
     endfor
 endfunction
 
-" Filter function for Vim popup scrolling
+" ============================================================================
+" Vim Popup Filter and Callbacks
+" ============================================================================
+"
+" Filter function handles key presses in Vim popup windows
+" - Scrolling keys (j/k, arrows, Ctrl-d/u) navigate content
+" - All other keys close the popup
+
 function! s:PopupFilter(winid, key) abort
-    " Get current position and content info
-    let pos = popup_getpos(a:winid)
-    let firstline = pos.firstline
-    let lastline = pos.lastline
-    
-    " Get buffer to check total lines
-    let bufnr = winbufnr(a:winid)
-    let total_lines = line('$', a:winid)
-    
-    " Scroll down one line
-    if a:key == 'j' || a:key == "\<Down>"
-        " Only scroll if not at bottom
-        if lastline < total_lines
-            call popup_setoptions(a:winid, {'firstline': firstline + 1})
-        endif
-        return 1
-    " Scroll up one line
-    elseif a:key == 'k' || a:key == "\<Up>"
-        " Only scroll if not at top
-        if firstline > 1
-            call popup_setoptions(a:winid, {'firstline': firstline - 1})
-        endif
-        return 1
-    " Page down
-    elseif a:key == "\<C-D>" || a:key == "\<PageDown>"
-        let pagesize = lastline - firstline
-        let new_firstline = firstline + pagesize
-        " Don't scroll past the end
-        if lastline < total_lines
-            call popup_setoptions(a:winid, {'firstline': new_firstline})
-        endif
-        return 1
-    " Page up
-    elseif a:key == "\<C-U>" || a:key == "\<PageUp>"
-        let pagesize = lastline - firstline
-        let new_firstline = firstline - pagesize
-        " Don't scroll past the beginning
-        if new_firstline < 1
-            call popup_setoptions(a:winid, {'firstline': 1})
-        else
-            call popup_setoptions(a:winid, {'firstline': new_firstline})
-        endif
-        return 1
-    " Close popup
-    elseif a:key == 'q' || a:key == 'x' || a:key == "\<Esc>"
-        call popup_close(a:winid)
+    " Handle scrolling keys
+    if s:IsScrollingKey(a:key)
+        call s:HandleScrolling(a:winid, a:key)
         return 1
     endif
     
-    return 0
+    " Any other key closes the popup
+    call popup_close(a:winid)
+    return 1
+endfunction
+
+" Check if the key is a scrolling key
+function! s:IsScrollingKey(key)
+    return a:key == 'j' || a:key == 'k' 
+        \ || a:key == "\<Down>" || a:key == "\<Up>"
+        \ || a:key == "\<C-D>" || a:key == "\<C-U>"
+        \ || a:key == "\<PageDown>" || a:key == "\<PageUp>"
+endfunction
+
+" Handle scrolling in Vim popup
+function! s:HandleScrolling(winid, key)
+    let pos = popup_getpos(a:winid)
+    let total_lines = line('$', a:winid)
+    
+    if a:key == 'j' || a:key == "\<Down>"
+        call s:ScrollDown(a:winid, pos, total_lines)
+    elseif a:key == 'k' || a:key == "\<Up>"
+        call s:ScrollUp(a:winid, pos)
+    elseif a:key == "\<C-D>" || a:key == "\<PageDown>"
+        call s:PageDown(a:winid, pos, total_lines)
+    elseif a:key == "\<C-U>" || a:key == "\<PageUp>"
+        call s:PageUp(a:winid, pos)
+    endif
+endfunction
+
+" Scroll down one line
+function! s:ScrollDown(winid, pos, total_lines)
+    if a:pos.lastline < a:total_lines
+        call popup_setoptions(a:winid, {'firstline': a:pos.firstline + 1})
+    endif
+endfunction
+
+" Scroll up one line
+function! s:ScrollUp(winid, pos)
+    if a:pos.firstline > 1
+        call popup_setoptions(a:winid, {'firstline': a:pos.firstline - 1})
+    endif
+endfunction
+
+" Scroll down one page
+function! s:PageDown(winid, pos, total_lines)
+    let pagesize = a:pos.lastline - a:pos.firstline
+    if a:pos.lastline < a:total_lines
+        call popup_setoptions(a:winid, {'firstline': a:pos.firstline + pagesize})
+    endif
+endfunction
+
+" Scroll up one page
+function! s:PageUp(winid, pos)
+    let pagesize = a:pos.lastline - a:pos.firstline
+    let new_firstline = max([1, a:pos.firstline - pagesize])
+    call popup_setoptions(a:winid, {'firstline': new_firstline})
 endfunction
 
 " ============================================================================
 " Commands and Keybindings
 " ============================================================================
 
-" Dictionary lookup command
+" Dictionary lookup commands
 command! -nargs=? RobertDict call s:ShowDefinition(<q-args>)
+command! -nargs=? R call s:ShowDefinition(<q-args>)
+command! -nargs=? Dict call s:ShowDefinition(<q-args>)
 
 " Reading mode toggle command
 command! RobertReadingMode call RobertToggleReadingMode()
 
 " Key mappings
-" <leader>d - Look up word under cursor
+" FAST ACCESS - Choose your favorite:
+
+" Option 1: Leader key (default \ then d)
 nnoremap <leader>d :RobertDict<CR>
 
-" <leader>r - Toggle reading mode (optional, uncomment to use)
+" Option 2: Double-tap comma (super fast!)
+nnoremap ,, :RobertDict<CR>
+
+" Option 3: K in normal mode (replaces default man page lookup)
+" nnoremap K :RobertDict<CR>
+
+" Option 4: Function key F2
+" nnoremap <F2> :RobertDict<CR>
+
+" Reading mode toggle
 " nnoremap <leader>r :RobertReadingMode<CR>
