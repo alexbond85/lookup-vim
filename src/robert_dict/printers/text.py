@@ -1,29 +1,16 @@
-"""Text printer for dictionary results with beautiful console formatting"""
-
 from typing import Union
 
 from robert_dict.models import WordResult, ConjugationResult
 
 
 class TextPrinter:
-    """Format dictionary results as readable text for console"""
-    
+
     def print(self, result: Union[WordResult, ConjugationResult]) -> str:
-        """
-        Format result as beautiful console text.
-        
-        Args:
-            result: The word or conjugation result
-            
-        Returns:
-            Formatted text string
-        """
         if isinstance(result, ConjugationResult):
             return self._format_conjugation(result)
         return self._format_word(result)
     
     def _format_word(self, result: WordResult) -> str:
-        """Format a WordResult as text"""
         lines = []
         
         # Header
@@ -77,7 +64,6 @@ class TextPrinter:
         return "\n".join(lines)
     
     def _format_conjugation(self, result: ConjugationResult) -> str:
-        """Format a ConjugationResult as text"""
         lines = []
         
         # Header
@@ -106,7 +92,6 @@ class TextPrinter:
         return "\n".join(lines)
     
     def _create_header(self, word: str) -> str:
-        """Create a formatted header for the word"""
         word_upper = word.upper()
         line_length = max(35, len(word_upper) + 4)
         separator = "═" * line_length
@@ -116,4 +101,3 @@ class TextPrinter:
         centered_word = " " * padding + word_upper
         
         return f"{separator}\n{centered_word}\n{separator}"
-

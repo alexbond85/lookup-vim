@@ -32,4 +32,3 @@ class ConjugationResult:
     definition_url: Optional[str] = None
     conjugations_sample: dict = field(default_factory=dict)
     message: str = ""
-

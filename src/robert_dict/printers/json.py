@@ -1,5 +1,3 @@
-"""JSON printer for dictionary results"""
-
 import json
 from typing import Union
 from dataclasses import asdict
@@ -8,26 +6,15 @@ from robert_dict.models import WordResult, ConjugationResult
 
 
 class JsonPrinter:
-    """Format dictionary results as JSON"""
-    
+
     def __init__(self, indent: int = 2):
         self.indent = indent
     
     def print(self, result: Union[WordResult, ConjugationResult]) -> str:
-        """
-        Format result as pretty-printed JSON.
-        
-        Args:
-            result: The word or conjugation result
-            
-        Returns:
-            JSON string with French characters preserved
-        """
         data = self._to_dict(result)
         return json.dumps(data, ensure_ascii=False, indent=self.indent)
     
     def _to_dict(self, result: Union[WordResult, ConjugationResult]) -> dict:
-        """Convert dataclass result to dictionary"""
         if isinstance(result, WordResult):
             return self._word_result_to_dict(result)
         elif isinstance(result, ConjugationResult):
@@ -35,7 +22,6 @@ class JsonPrinter:
         return asdict(result)
     
     def _word_result_to_dict(self, result: WordResult) -> dict:
-        """Convert WordResult to dictionary"""
         return {
             "word": result.word,
             "original_word": result.original_word or result.word,
@@ -53,7 +39,6 @@ class JsonPrinter:
         }
     
     def _conjugation_result_to_dict(self, result: ConjugationResult) -> dict:
-        """Convert ConjugationResult to dictionary"""
         return {
             "type": "conjugation",
             "original_word": result.original_word,
@@ -63,4 +48,3 @@ class JsonPrinter:
             "conjugations_sample": result.conjugations_sample,
             "message": result.message
         }
-

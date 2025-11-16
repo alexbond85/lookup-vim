@@ -50,3 +50,42 @@ def sample_conjugation_result():
         message="This is a conjugated form"
     )
 
+
+class _MockScraper:
+    """Mock scraper for testing"""
+    
+    def __init__(self):
+        self.result = None
+        self.should_raise = None
+        self.fetch_called_with = None
+    
+    def fetch(self, word: str):
+        self.fetch_called_with = word
+        if self.should_raise:
+            raise self.should_raise
+        return self.result
+
+
+class _MockPrinter:
+    """Mock printer for testing"""
+    
+    def __init__(self):
+        self.output = "formatted output"
+        self.print_called_with = None
+    
+    def print(self, result):
+        self.print_called_with = result
+        return self.output
+
+
+@pytest.fixture
+def mock_scraper():
+    """Mock scraper instance"""
+    return _MockScraper()
+
+
+@pytest.fixture
+def mock_printer():
+    """Mock printer instance"""
+    return _MockPrinter()
+

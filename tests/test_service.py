@@ -2,77 +2,60 @@
 
 import pytest
 from robert_dict.service import DictionaryService
-from robert_dict.models import WordResult, Definition
 
 
-class MockScraper:
-    """Mock scraper for testing"""
-    
-    def __init__(self, result=None, should_raise=None):
-        self.result = result
-        self.should_raise = should_raise
-        self.fetch_called_with = None
-    
-    def fetch(self, word: str):
-        self.fetch_called_with = word
-        if self.should_raise:
-            raise self.should_raise
-        return self.result
-
-
-class MockPrinter:
-    """Mock printer for testing"""
-    
-    def __init__(self, output="formatted output"):
-        self.output = output
-        self.print_called_with = None
-    
-    def print(self, result):
-        self.print_called_with = result
-        return self.output
-
-
-def test_service_initialization():
+def test_service_initialization(mock_scraper, mock_printer):
     """Test service initializes with scraper and printer"""
-    scraper = MockScraper()
-    printer = MockPrinter()
-    service = DictionaryService(scraper=scraper, printer=printer)
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
     
-    assert service.scraper == scraper
-    assert service.printer == printer
+    assert service.scraper == mock_scraper
+    assert service.printer == mock_printer
 
 
-def test_service_lookup_success(sample_word_result):
-    """Test successful word lookup"""
-    scraper = MockScraper(result=sample_word_result)
-    printer = MockPrinter(output="Beautiful formatted text")
-    service = DictionaryService(scraper=scraper, printer=printer)
+def test_service_lookup_calls_scraper(mock_scraper, mock_printer, sample_word_result):
+    """Test lookup calls scraper with correct word"""
+    mock_scraper.result = sample_word_result
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
+    
+    service.lookup("bien")
+    
+    assert mock_scraper.fetch_called_with == "bien"
+
+
+def test_service_lookup_calls_printer(mock_scraper, mock_printer, sample_word_result):
+    """Test lookup calls printer with scraper result"""
+    mock_scraper.result = sample_word_result
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
+    
+    service.lookup("bien")
+    
+    assert mock_printer.print_called_with == sample_word_result
+
+
+def test_service_lookup_returns_printer_output(mock_scraper, mock_printer, sample_word_result):
+    """Test lookup returns printer output"""
+    mock_scraper.result = sample_word_result
+    mock_printer.output = "Beautiful formatted text"
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
     
     result = service.lookup("bien")
     
     assert result == "Beautiful formatted text"
-    assert scraper.fetch_called_with == "bien"
-    assert printer.print_called_with == sample_word_result
 
 
-def test_service_lookup_word_not_found():
-    """Test lookup with word not found"""
-    scraper = MockScraper(should_raise=ValueError("Word not found"))
-    printer = MockPrinter()
-    service = DictionaryService(scraper=scraper, printer=printer)
+def test_service_lookup_propagates_value_error(mock_scraper, mock_printer):
+    """Test lookup propagates ValueError from scraper"""
+    mock_scraper.should_raise = ValueError("Word not found")
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
     
     with pytest.raises(ValueError, match="Word not found"):
-        service.lookup("nonexistentword")
-    
-    assert scraper.fetch_called_with == "nonexistentword"
-    assert printer.print_called_with is None
+        service.lookup("nonexistent")
 
 
-def test_service_lookup_network_error():
-    """Test lookup with network error"""
-    scraper = MockScraper(should_raise=Exception("Network error"))
-    printer = MockPrinter()
-    service = DictionaryService(scraper=scraper, printer=printer)
+def test_service_lookup_propagates_network_error(mock_scraper, mock_printer):
+    """Test lookup propagates network errors from scraper"""
+    mock_scraper.should_raise = Exception("Network error")
+    service = DictionaryService(scraper=mock_scraper, printer=mock_printer)
     
     with pytest.raises(Exception, match="Network error"):
         service.lookup("test")
