@@ -32,3 +32,12 @@ class ConjugationResult:
     definition_url: Optional[str] = None
     conjugations_sample: dict = field(default_factory=dict)
     message: str = ""
+
+
+@dataclass
+class TranslationResult:
+    """Result of a translation request with explanations"""
+    query: str
+    translation: str
+    explanations: str
+    context: Optional[str] = None

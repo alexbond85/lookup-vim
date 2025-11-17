@@ -11,6 +11,8 @@ dependencies = [
     "requests>=2.31.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=4.9.0",
+    "openai>=2.8.0",
+    "python-dotenv>=1.2.1",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +23,7 @@ dev = [
 
 [project.scripts]
 robert-dict = "robert_dict.cli:main"
+robert-translate = "robert_dict.cli_translate:main"
 
 [build-system]
 requires = ["hatchling"]

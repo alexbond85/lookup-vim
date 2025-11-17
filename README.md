@@ -4,11 +4,15 @@ A simple CLI tool to fetch French word definitions from [Le Robert dictionary](h
 
 ## Features
 
-- Fetch word definitions from Le Robert online dictionary
-- Get usage examples and word combinations
-- JSON output for easy parsing and integration
-- Simple, KISS-principle design
-- Extensible architecture for future features (synonyms, conjugations)
+- 📚 Fetch word definitions from Le Robert online dictionary
+- 🤖 AI-powered translations with ChatGPT for phrases and context
+- 🧠 Intelligent routing: single words → Robert, phrases → ChatGPT
+- 💡 Get usage examples, word combinations, and contextual explanations
+- 📋 JSON output for easy parsing and integration
+- 🎨 Beautiful Vim plugin with popup definitions
+- 🖥️ Interactive multi-terminal watcher with colored output
+- 🎯 Simple, KISS-principle design
+- 🔧 Extensible architecture for future features
 
 ## Installation
 
@@ -71,6 +75,57 @@ robert-dict maison --indent 0
 
 ```bash
 robert-dict bonjour > bonjour_definition.json
+```
+
+## 🎮 Vim Plugin
+
+The project includes a feature-rich Vim plugin for seamless dictionary lookups while editing!
+
+### Quick Setup
+
+1. Add to your `.vimrc`:
+```vim
+" Add the plugin directory to vim's runtimepath
+set runtimepath+=~/projects/alexbond/robert-online
+```
+
+2. Restart vim or reload: `:source ~/.vimrc`
+
+### Usage
+
+- **Quick Lookup**: Press `,,` (double comma) on any word
+- **Manual Lookup**: `:R` or `:RobertDict`
+- **Reading Mode**: `:RobertReadingMode` - highlights current paragraph and word
+
+See the plugin file for more keybindings and customization options.
+
+## 🚀 Smart Lookup (Python)
+
+Press `,,` in Vim on any word or phrase:
+- **Single word** → Le Robert dictionary (auto-fallback to ChatGPT if not found)
+- **Multi-word phrase** → ChatGPT translation with context
+
+```bash
+vim myfile.txt
+# Position cursor on any word, press ,,
+# Or select multiple words (visual mode), press ,,
+# Output appears in a new terminal
+```
+
+**How it works:**
+1. Vim writes `{"selection": "word", "phrase": "...", "paragraph": "..."}` to `/tmp/robert-dict-word.json`
+2. Vim executes `scripts/dict_watcher.py` 
+3. Script displays beautiful colored output
+4. Done
+
+### Alternative: Bash Watcher (for continuous watching)
+
+```bash
+# Terminal 1: Start watcher
+./scripts/dict-watcher.sh
+
+# Terminal 2: Use vim, press ,,
+# Definitions appear in Terminal 1
 ```
 
 ## Output Format
@@ -178,7 +233,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
 Key directories:
 - `src/robert_dict/` - Main package code
 - `tests/` - Test suite
-- `vim/` - Vim plugin (optional)
+- `plugin/` - Vim plugin (optional)
+- `scripts/` - Tmux mode scripts
 
 ### Design Principles
 
