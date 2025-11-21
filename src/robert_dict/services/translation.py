@@ -16,25 +16,35 @@ class TranslationOutput(BaseModel):
 
 
 class ChatGPTTranslationService:
-    """Service for translating French text to Russian with contextual explanations"""
+    """Service for translating text between languages with contextual explanations"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-5.1"):
+    def __init__(
+        self, 
+        api_key: Optional[str] = None, 
+        model: str = "gpt-5.1",
+        source_lang: str = "French",
+        target_lang: str = "Russian"
+    ):
         """
         Initialize the ChatGPT translation service
         
         Args:
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
-            model: OpenAI model to use (default: gpt-4o)
+            model: OpenAI model to use (default: gpt-5.1)
+            source_lang: Source language for translation (default: French)
+            target_lang: Target language for translation (default: Russian)
         """
         self.client = OpenAI(api_key=api_key)
         self.model = model
+        self.source_lang = source_lang
+        self.target_lang = target_lang
     
     def translate(self, query: str, context: Optional[str] = None) -> TranslationResult:
         """
-        Translate a French word/expression to Russian with detailed explanations
+        Translate a word/expression between the configured languages with detailed explanations
         
         Args:
-            query: The French word or expression to translate
+            query: The word or expression to translate
             context: Optional paragraph providing context for the query
             
         Returns:
@@ -47,11 +57,11 @@ class ChatGPTTranslationService:
 "{context}"
 
 Donne une réponse courte et utile :
-1. Traduction en russe
+1. Traduction en {self.target_lang}
 2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
 3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
         else:
-            user_content = f"""Traduis le mot/expression français "{query}" en russe et donne une réponse courte et utile :
+            user_content = f"""Traduis le mot/expression {self.source_lang} "{query}" en {self.target_lang} et donne une réponse courte et utile :
 1. Traduction
 2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
 3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
@@ -62,7 +72,7 @@ Donne une réponse courte et utile :
             input=[
                 {
                     "role": "system",
-                    "content": "Tu es un traducteur du français vers le russe. Donne des traductions et explications courtes et précises. Utilise uniquement le français et le russe. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot."
+                    "content": f"Tu es un traducteur du {self.source_lang} vers le {self.target_lang}. Donne des traductions et explications courtes et précises. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot."
                 },
                 {
                     "role": "user",
@@ -84,3 +94,11 @@ Donne une réponse courte et utile :
             context=context
         )
 
+
+if __name__ == "__main__":
+    service = ChatGPTTranslationService(
+        source_lang="French",
+        target_lang="Russian"
+    )
+    result = service.translate("l'optimisation des performances")
+    print(result)

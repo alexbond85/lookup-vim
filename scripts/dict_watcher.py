@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""One-shot dictionary lookup with intelligent routing between Robert and ChatGPT."""
+"""Dictionary lookup with intelligent routing between Robert and ChatGPT.
+Can be called from bash script when file changes are detected."""
 
 import os
 import sys
@@ -79,15 +80,19 @@ def lookup():
         Printer.error("Empty selection")
         return 1
     
-    os.system('clear')
+    # Clear screen only if not being called from interactive bash script
+    # (bash script can control clearing if needed)
+    if os.getenv('DICT_WATCHER_NO_CLEAR') != '1':
+        os.system('clear')
+    
     Printer.header()
     Printer.context(phrase, paragraph)
     
     try:
-        from robert_dict.service import DictionaryService
+        from robert_dict.services.dictionary import DictionaryService
         from robert_dict.scrapers.lerobert import LeRobertScraper
         from robert_dict.printers.text import TextPrinter
-        from robert_dict.chatgpt_service import ChatGPTTranslationService
+        from robert_dict.services.translation import ChatGPTTranslationService
         
         if is_single_word(selection):
             try:

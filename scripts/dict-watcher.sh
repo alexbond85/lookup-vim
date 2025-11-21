@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dictionary viewer with beautiful formatting and interactive mode
+# Dictionary viewer with file watching - delegates to Python script for logic
 # Usage: Run this in your second terminal window
 #   - Type a word and press Enter to look it up
 #   - Or use ,, in vim to trigger lookup
@@ -8,54 +8,26 @@
 set +m
 
 WORD_FILE="${TMPDIR:-/tmp}/robert-dict-word.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_SCRIPT="${SCRIPT_DIR}/dict_watcher.py"
 
-# Colors
-BOLD='\033[1m'
-DIM='\033[2m'
-BLUE='\033[1;34m'
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[1;36m'
-MAGENTA='\033[1;35m'
-RESET='\033[0m'
-
-# Configuration
-STREAM_MODE=true        # Set to false to disable streaming effect
-STREAM_DELAY=0.002      # Delay between characters (seconds) - faster now
-
-# Streaming print function - handles color codes properly
-stream_print() {
-    local text="$1"
-    if [ "$STREAM_MODE" = true ]; then
-        local i=0
-        local len=${#text}
-        while [ $i -lt $len ]; do
-            # Check for escape sequence start
-            if [ "${text:$i:1}" = $'\033' ] || [ "${text:$i:2}" = '\0' ]; then
-                # Find the end of escape sequence (letter after '[')
-                local esc_end=$i
-                while [ $esc_end -lt $len ]; do
-                    local char="${text:$esc_end:1}"
-                    esc_end=$((esc_end + 1))
-                    if [[ "$char" =~ [a-zA-Z] ]]; then
-                        break
-                    fi
-                done
-                # Print entire escape sequence instantly
-                echo -ne "${text:$i:$((esc_end - i))}"
-                i=$esc_end
-            else
-                # Regular character - stream it
-                echo -n "${text:$i:1}"
-                sleep "$STREAM_DELAY"
-                i=$((i + 1))
-            fi
-        done
-        echo ""
-    else
-        echo -e "$text"
+# Cleanup function
+cleanup() {
+    # Kill background watcher if it exists
+    if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
+        kill "$WATCHER_PID" 2>/dev/null
+        wait "$WATCHER_PID" 2>/dev/null
     fi
 }
+
+# Trap signals to cleanup properly (but don't trap EXIT to avoid double-cleanup)
+trap cleanup INT TERM
+
+# Colors for bash prompts
+GREEN='\033[1;32m'
+CYAN='\033[1;36m'
+DIM='\033[2m'
+RESET='\033[0m'
 
 # Check for fswatch
 if ! command -v fswatch &> /dev/null; then
@@ -67,63 +39,17 @@ else
     FSWATCH_AVAILABLE=true
 fi
 
-# Function to display a word definition
+# Function to call Python script and display result
 display_definition() {
     local input="$1"
-    local word=""
-    local phrase=""
-    local paragraph=""
     
-    # Try to parse as JSON
-    if command -v jq &> /dev/null && echo "$input" | jq empty 2>/dev/null; then
-        word=$(echo "$input" | jq -r '.selection // empty')
-        phrase=$(echo "$input" | jq -r '.phrase // empty')
-        paragraph=$(echo "$input" | jq -r '.paragraph // empty')
-    else
-        # Fallback: treat as plain text
-        word="$input"
-    fi
+    # Write input to file if provided (for manual input)
+    [ -n "$input" ] && echo "{\"selection\": \"$input\"}" > "$WORD_FILE"
     
-    # Clear screen and show header
-    clear
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${GREEN}║${RESET}  ${CYAN}${BOLD}📖  Dictionnaire Le Robert${RESET}                                                ${GREEN}║${RESET}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════════════════════╝${RESET}"
-    echo ""
+    # Call Python script - it handles all the logic and formatting
+    python3 "$PYTHON_SCRIPT"
     
-    # Show context if available
-    if [ -n "$phrase" ]; then
-        echo -e "${DIM}Phrase: ${RESET}${phrase:0:120}..."
-        echo ""
-    fi
-    
-    # Fetch and display definition with nice formatting and streaming
-    robert-dict "$word" 2>/dev/null | while IFS= read -r line; do
-        # Category headers (in brackets)
-        if [[ "$line" =~ ^\[.*\]$ ]]; then
-            stream_print "${MAGENTA}${BOLD}$line${RESET}"
-        # Definition numbers
-        elif [[ "$line" =~ ^[[:space:]]*[0-9]+\. ]]; then
-            stream_print "${CYAN}$line${RESET}"
-        # Examples (arrows)
-        elif [[ "$line" =~ ^[[:space:]]*→ ]]; then
-            stream_print "${DIM}$line${RESET}"
-        # Section headers (all caps)
-        elif [[ "$line" =~ ^[A-ZÀÂÄÆÇÉÈÊËÏÎÔŒÙÛÜŸ\'\ ]+$ ]] && [ ${#line} -lt 80 ]; then
-            stream_print "${YELLOW}${BOLD}$line${RESET}"
-        # Separator lines (instant - no streaming for these)
-        elif [[ "$line" =~ ^─+$ ]] || [[ "$line" =~ ^═+$ ]]; then
-            echo -e "${GREEN}$line${RESET}"
-        # Regular text
-        else
-            stream_print "$line"
-        fi
-    done
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}⚠ Aucune définition trouvée pour: ${BOLD}$word${RESET}"
-    fi
-    
+    # Show prompt after Python finishes
     echo ""
     echo -e "${GREEN}────────────────────────────────────────────────────────────────────────────────${RESET}"
     echo -e "${CYAN}Tapez un mot et appuyez sur Entrée${RESET} ${DIM}ou utilisez ,, dans vim${RESET}"
@@ -141,7 +67,7 @@ echo "" > "$WORD_FILE"
 # Initial screen
 clear
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}║${RESET}  ${CYAN}${BOLD}📖  Dictionnaire Le Robert${RESET}                                                ${GREEN}║${RESET}"
+echo -e "${GREEN}║${RESET}  ${CYAN}${BOLD}📖  Dictionnaire Le Robert & ChatGPT${RESET}                                   ${GREEN}║${RESET}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "${YELLOW}Mode interactif activé${RESET}"
@@ -156,34 +82,34 @@ echo -ne "${GREEN}❯${RESET} "
 if [ "$FSWATCH_AVAILABLE" = true ]; then
     {
         fswatch -o "$WORD_FILE" 2>/dev/null | while read; do
-            INPUT=$(cat "$WORD_FILE" 2>/dev/null)
-            if [ -n "$INPUT" ]; then
-                display_definition "$INPUT"
-            fi
+            # File changed - call Python script to handle it
+            # The Python script reads from WORD_FILE and outputs to stdout
+            display_definition ""
         done
     } &
     WATCHER_PID=$!
 fi
 
 # Interactive mode: read from stdin
-while IFS= read -r input; do
-    # Check for exit commands
-    if [ "$input" = "quit" ] || [ "$input" = "exit" ] || [ "$input" = "q" ]; then
+while IFS= read -r input || [ -n "$input" ]; do
+    # Handle EOF (Ctrl+D)
+    if [ -z "$input" ] && [ ${#input} -eq 0 ]; then
+        break
+    fi
+    
+    # Check for exit commands (case-insensitive)
+    input_lower=$(echo "$input" | tr '[:upper:]' '[:lower:]')
+    if [ "$input_lower" = "quit" ] || [ "$input_lower" = "exit" ] || [ "$input_lower" = "q" ]; then
         echo ""
         echo -e "${CYAN}Au revoir! 👋${RESET}"
-        # Cleanup
-        if [ -n "$WATCHER_PID" ]; then
-            kill $WATCHER_PID 2>/dev/null
-        fi
-        exit 0
+        break
     elif [ -n "$input" ]; then
+        # Manual input - convert to JSON and trigger lookup
         display_definition "$input"
     else
         echo -ne "${GREEN}❯${RESET} "
     fi
 done
 
-# Cleanup on exit
-if [ -n "$WATCHER_PID" ]; then
-    kill $WATCHER_PID 2>/dev/null
-fi
+# Cleanup - script will exit naturally when it reaches the end
+cleanup
