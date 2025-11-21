@@ -15,10 +15,10 @@ console = Console()
 def display_greeting():
     """Display welcome message"""
     greeting = Panel(
-        "[bold cyan]🔍 Robert Dictionary Interactive Watcher[/bold cyan]\n\n"
-        "Waiting for selections from Vim or enter words directly...",
+        "[blue]🔍 Robert Dictionary Interactive Watcher[/blue]\n\n"
+        "[dim]Waiting for selections from Vim or enter words directly...[/dim]",
         box=box.ROUNDED,
-        border_style="cyan"
+        border_style="blue"
     )
     console.print(greeting)
     console.print()
@@ -28,22 +28,23 @@ def display_word_result(result: WordResult):
     """Display dictionary word result with definitions, examples, and combinations"""
     
     # Header with word
-    header_text = f"[bold green]{result.word}[/bold green]"
+    header_text = f"[cyan]{result.word}[/cyan]"
     if result.original_word and result.original_word != result.word:
         header_text += f" [dim](from: {result.original_word})[/dim]"
     
-    console.print(Panel(header_text, box=box.HEAVY, border_style="green"))
+    console.print()  # Add blank line before
+    console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan", expand=False))
     
     # Definitions section
     if result.definitions:
-        console.print("\n[bold yellow]📖 Definitions:[/bold yellow]\n")
+        console.print("\n[dim]📖 Definitions:[/dim]\n")
         for idx, definition in enumerate(result.definitions, 1):
             # Category
             if definition.category:
-                console.print(f"[bold cyan]{definition.category}[/bold cyan]")
+                console.print(f"[dim]{definition.category}[/dim]")
             
             # Definition text
-            console.print(f"  {idx}. {definition.definition}")
+            console.print(f"  [white]{idx}.[/white] {definition.definition}")
             
             # Examples for this definition
             if definition.examples:
@@ -53,49 +54,50 @@ def display_word_result(result: WordResult):
     
     # Usage examples section
     if result.usage_examples:
-        console.print("[bold yellow]💡 Usage Examples:[/bold yellow]\n")
+        console.print("[dim]💡 Usage Examples:[/dim]\n")
         for example in result.usage_examples[:5]:  # Show up to 5 examples
-            console.print(f"  • [italic]{example}[/italic]")
+            console.print(f"  • [dim italic]{example}[/dim italic]")
         console.print()
     
     # Word combinations section
     if result.word_combinations:
-        console.print("[bold yellow]🔗 Word Combinations:[/bold yellow]\n")
+        console.print("[dim]🔗 Word Combinations:[/dim]\n")
         # Display in rows of 3
         combos = result.word_combinations[:15]  # Limit to 15
         for i in range(0, len(combos), 3):
             row = combos[i:i+3]
-            console.print("  " + " • ".join(row))
+            console.print(f"  [dim]{' • '.join(row)}[/dim]")
         console.print()
     
-    console.print(f"[dim]Source: {result.url}[/dim]\n")
+    console.print(f"[dim italic]Source: {result.url}[/dim italic]\n")
 
 
 def display_translation_result(result: TranslationResult):
     """Display translation result with explanations"""
     
     # Query header
-    query_text = f"[bold magenta]{result.query}[/bold magenta]"
-    console.print(Panel(query_text, box=box.HEAVY, border_style="magenta"))
+    query_text = f"[cyan]{result.query}[/cyan]"
+    console.print()  # Add blank line before
+    console.print(Panel(query_text, box=box.ROUNDED, border_style="cyan", expand=False))
     
     # Translation (highlighted)
     translation_panel = Panel(
-        f"[bold green]{result.translation}[/bold green]",
-        title="Translation",
+        f"[white]{result.translation}[/white]",
+        title="[dim]Translation[/dim]",
         box=box.ROUNDED,
-        border_style="green"
+        border_style="blue"
     )
     console.print("\n")
     console.print(translation_panel)
     
     # Explanations
     if result.explanations:
-        console.print("\n[bold yellow]📝 Explanations:[/bold yellow]\n")
-        console.print(f"  {result.explanations}\n")
+        console.print("\n[dim]📝 Explanations:[/dim]\n")
+        console.print(f"  [dim]{result.explanations}[/dim]\n")
     
     # Context if provided
     if result.context:
-        console.print("[bold yellow]📄 Context:[/bold yellow]\n")
+        console.print("[dim]📄 Context:[/dim]\n")
         console.print(f"  [dim italic]{result.context}[/dim italic]\n")
 
 
@@ -110,5 +112,5 @@ def display_prompt(has_context: bool = False):
         console.print("[dim]Options: [1] Translate phrase | [2] Translate paragraph | [word/phrase] New lookup | [q/exit] Quit[/dim]")
     else:
         console.print("[dim]Enter word/phrase to lookup, or [q/exit] to quit[/dim]")
-    console.print("[bold cyan]>[/bold cyan] ", end="")
+    console.print("[blue]>[/blue] ", end="")
 
