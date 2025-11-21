@@ -13,6 +13,8 @@ dependencies = [
     "lxml>=4.9.0",
     "openai>=2.8.0",
     "python-dotenv>=1.2.1",
+    "rich>=13.0.0",
+    "watchdog>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,7 @@ dev = [
 [project.scripts]
 robert-dict = "robert_dict.cli:main"
 robert-translate = "robert_dict.cli_translate:main"
+robert-watch = "robert_dict.interactive.watcher:main"
 
 [build-system]
 requires = ["hatchling"]

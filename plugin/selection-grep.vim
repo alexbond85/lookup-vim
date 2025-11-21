@@ -1,6 +1,6 @@
-" Robert Dictionary Vim Plugin - Send words with context to external viewer
+" Selection Grep Vim Plugin - Extract selection with context to file
 "
-" Usage: Press ,, on any word to look it up in separate terminal
+" Usage: Press ,, on any word or visual selection to grep it to a file with context
 
 " ============================================================================
 " Context Extraction Functions
@@ -108,8 +108,12 @@ function! s:LookupWord(...)
         \ }
     
     " Write to file and execute lookup
-    let word_file = (exists('$TMPDIR') ? $TMPDIR : '/tmp') . '/robert-dict-word.json'
-    call writefile([json_encode(data)], word_file)
+    let tmp_dir = exists('$TMP_VIM') ? $TMP_VIM : expand('<sfile>:p:h:h') . '/tmp'
+    let word_file = tmp_dir . '/selection.json'
+    " Format JSON with 4-space indentation and preserve French accents
+    let json_str = json_encode(data)
+    let formatted = system('python3 -c "import sys, json; print(json.dumps(json.loads(sys.stdin.read()), indent=4, ensure_ascii=False))"', json_str)
+    call writefile(split(formatted, '\n'), word_file)
     
     let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
     silent! call system(script_path)
@@ -162,8 +166,12 @@ function! s:LookupVisualSelection()
         \ }
     
     " Write to file and execute lookup
-    let word_file = (exists('$TMPDIR') ? $TMPDIR : '/tmp') . '/robert-dict-word.json'
-    call writefile([json_encode(data)], word_file)
+    let tmp_dir = exists('$TMP_VIM') ? $TMP_VIM : expand('<sfile>:p:h:h') . '/tmp'
+    let word_file = tmp_dir . '/selection.json'
+    " Format JSON with 4-space indentation and preserve French accents
+    let json_str = json_encode(data)
+    let formatted = system('python3 -c "import sys, json; print(json.dumps(json.loads(sys.stdin.read()), indent=4, ensure_ascii=False))"', json_str)
+    call writefile(split(formatted, '\n'), word_file)
     
     let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
     silent! call system(script_path)
@@ -173,17 +181,17 @@ endfunction
 " Commands and Keybindings
 " ============================================================================
 
-command! -nargs=? RobertDict call s:LookupWord(<q-args>)
-command! -nargs=? R call s:LookupWord(<q-args>)
-command! -nargs=? Dict call s:LookupWord(<q-args>)
+command! -nargs=? SelectionGrep call s:LookupWord(<q-args>)
+command! -nargs=? SGrep call s:LookupWord(<q-args>)
+command! -nargs=? Grep call s:LookupWord(<q-args>)
 
 " Keybindings
-nnoremap <leader>d :RobertDict<CR>
-nnoremap ,, :RobertDict<CR>
+nnoremap <leader>g :SelectionGrep<CR>
+nnoremap ,, :SelectionGrep<CR>
 
-" Visual mode keybinding - lookup selected text
+" Visual mode keybinding - grep selected text
 vnoremap ,, :<C-u>call <SID>LookupVisualSelection()<CR>
 
 " Optional keybindings (uncomment to enable)
-" nnoremap K :RobertDict<CR>
-" nnoremap <F2> :RobertDict<CR>
+" nnoremap K :SelectionGrep<CR>
+" nnoremap <F2> :SelectionGrep<CR>
