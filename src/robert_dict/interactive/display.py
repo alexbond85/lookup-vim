@@ -3,8 +3,6 @@
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
 from robert_dict.models import TranslationResult, WordResult
 
@@ -82,7 +80,9 @@ def display_translation_result(result: TranslationResult):
     # Query header
     query_text = f"[cyan]{result.query}[/cyan]"
     console.print()  # Add blank line before
-    console.print(Panel(query_text, box=box.ROUNDED, border_style="cyan", expand=False))
+    console.print(
+        Panel(query_text, box=box.ROUNDED, border_style="cyan", expand=False)
+    )
 
     # Translation (highlighted)
     translation_panel = Panel(

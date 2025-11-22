@@ -1,9 +1,8 @@
 """History logging for dictionary lookups and translations"""
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 class HistoryLogger:
     """Logs all console output to daily history files"""
 
-    def __init__(self, console: Console, history_dir: Optional[Path] = None):
+    def __init__(self, console: Console, history_dir: Path | None = None):
         """
         Initialize history logger
 
@@ -35,15 +34,17 @@ class HistoryLogger:
         # Track current date for daily file rotation
         self.current_date = datetime.now().date()
 
-        logger.debug(f"Initialized HistoryLogger with directory: {self.history_dir}")
+        logger.debug(
+            f"Initialized HistoryLogger with directory: {self.history_dir}"
+        )
 
-    def _get_date_string(self, date=None) -> str:
+    def _get_date_string(self, date: date | None = None) -> str:
         """Get date string in YYYY-MM-DD format"""
         if date is None:
             date = self.current_date
         return date.strftime("%Y-%m-%d")
 
-    def _get_file_paths(self, date=None) -> tuple[Path, Path]:
+    def _get_file_paths(self, date: date | None = None) -> tuple[Path, Path]:
         """Get paths for text and HTML history files for a date"""
         date_str = self._get_date_string(date)
         txt_path = self.history_dir / f"{date_str}.txt"
@@ -78,8 +79,8 @@ class HistoryLogger:
             logger.error(f"Failed to save history: {e}")
 
     def get_history_file(
-        self, date_str: Optional[str] = None
-    ) -> tuple[Optional[Path], Optional[Path]]:
+        self, date_str: str | None = None
+    ) -> tuple[Path | None, Path | None]:
         """
         Get history file paths for a specific date
 

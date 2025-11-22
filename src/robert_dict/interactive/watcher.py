@@ -7,11 +7,13 @@ import sys
 import time
 from pathlib import Path
 from queue import Empty, Queue
-from threading import Event
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from watchdog.events import FileModifiedEvent, FileSystemEventHandler
+from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+
+if TYPE_CHECKING:
+    from watchdog.observers.api import BaseObserver
 
 from robert_dict.interactive.display import (
     console,
@@ -45,7 +47,7 @@ class SelectionFileHandler(FileSystemEventHandler):
     def __init__(self, file_path: Path, change_queue: Queue):
         self.file_path = file_path
         self.change_queue = change_queue
-        self.last_modified = 0
+        self.last_modified: float = 0.0
 
     def on_modified(self, event):
         """Handle file modification event"""
@@ -70,13 +72,13 @@ class SelectionFileHandler(FileSystemEventHandler):
         except Exception as e:
             logger.error(f"Error reading selection file: {e}")
 
-    def _read_selection_file(self) -> Optional[SelectionData]:
+    def _read_selection_file(self) -> SelectionData | None:
         """Read and parse selection.json file"""
         try:
             # Small delay to ensure file write is complete
             time.sleep(0.1)
 
-            with open(self.file_path, "r", encoding="utf-8") as f:
+            with open(self.file_path, encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
                     return None
@@ -100,12 +102,12 @@ class InteractiveDictionaryWatcher:
 
     def __init__(self, selection_file: Path):
         self.selection_file = selection_file
-        self.change_queue = Queue()
-        self.observer = None
+        self.change_queue: Queue[SelectionData] = Queue()
+        self.observer: BaseObserver | None = None
 
         # Current context for phrase/paragraph translation options
-        self.current_phrase: Optional[str] = None
-        self.current_paragraph: Optional[str] = None
+        self.current_phrase: str | None = None
+        self.current_paragraph: str | None = None
 
         # Initialize services
         scraper = LeRobertScraper()
@@ -133,7 +135,9 @@ class InteractiveDictionaryWatcher:
 
     def _start_file_watcher(self):
         """Start watchdog observer for file monitoring"""
-        event_handler = SelectionFileHandler(self.selection_file, self.change_queue)
+        event_handler = SelectionFileHandler(
+            self.selection_file, self.change_queue
+        )
         self.observer = Observer()
         self.observer.schedule(
             event_handler, str(self.selection_file.parent), recursive=False
@@ -160,7 +164,9 @@ class InteractiveDictionaryWatcher:
 
             # Display prompt only when needed
             if print_prompt:
-                has_context = bool(self.current_phrase or self.current_paragraph)
+                has_context = bool(
+                    self.current_phrase or self.current_paragraph
+                )
                 display_prompt(has_context)
                 print_prompt = False
 
@@ -186,7 +192,7 @@ class InteractiveDictionaryWatcher:
             # Process user input
             self._process_user_input(user_input)
 
-    def _get_input_with_timeout(self, timeout: float) -> Optional[str]:
+    def _get_input_with_timeout(self, timeout: float) -> str | None:
         """Get user input with a timeout, returns None if timeout"""
         # Check if input is available (Unix only)
         if sys.platform != "win32":
@@ -281,7 +287,9 @@ def main():
 
     # Create empty file if it doesn't exist
     if not selection_file.exists():
-        selection_file.write_text('{"selection": "", "phrase": "", "paragraph": ""}')
+        selection_file.write_text(
+            '{"selection": "", "phrase": "", "paragraph": ""}'
+        )
         logger.info(f"Created selection file: {selection_file}")
 
     watcher = InteractiveDictionaryWatcher(selection_file)

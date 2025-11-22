@@ -1,8 +1,5 @@
 """ChatGPT-based translation service with contextual explanations"""
 
-import os
-from typing import Optional
-
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
@@ -24,7 +21,7 @@ class ChatGPTTranslationService:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gpt-5.1",
         source_lang: str = "French",
         target_lang: str = "Russian",
@@ -43,7 +40,9 @@ class ChatGPTTranslationService:
         self.source_lang = source_lang
         self.target_lang = target_lang
 
-    def translate(self, query: str, context: Optional[str] = None) -> TranslationResult:
+    def translate(
+        self, query: str, context: str | None = None
+    ) -> TranslationResult:
         """
         Translate a word/expression between the configured languages with detailed explanations
 
@@ -87,6 +86,9 @@ Donne une réponse courte et utile :
         # Extract the parsed output
         output = response.output_parsed
 
+        if output is None:
+            raise ValueError("Translation failed: no output from API")
+
         # Create and return TranslationResult
         return TranslationResult(
             query=query,
@@ -97,6 +99,8 @@ Donne une réponse courte et utile :
 
 
 if __name__ == "__main__":
-    service = ChatGPTTranslationService(source_lang="French", target_lang="Russian")
+    service = ChatGPTTranslationService(
+        source_lang="French", target_lang="Russian"
+    )
     result = service.translate("l'optimisation des performances")
     print(result)

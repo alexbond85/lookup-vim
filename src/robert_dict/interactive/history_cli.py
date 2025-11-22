@@ -29,7 +29,10 @@ def main():
         help="Date to view history for (YYYY-MM-DD format). Defaults to today.",
     )
     parser.add_argument(
-        "--list", "-l", action="store_true", help="List all available history dates"
+        "--list",
+        "-l",
+        action="store_true",
+        help="List all available history dates",
     )
     parser.add_argument(
         "--html", action="store_true", help="Open HTML version in browser"
@@ -40,7 +43,9 @@ def main():
         action="store_true",
         help="Interactive mode to browse through history",
     )
-    parser.add_argument("--dir", type=str, help="Custom history directory path")
+    parser.add_argument(
+        "--dir", type=str, help="Custom history directory path"
+    )
 
     args = parser.parse_args()
 
@@ -75,9 +80,13 @@ def main():
 
         if html_path is None or not html_path.exists():
             if date_str:
-                console.print(f"[yellow]No HTML history found for {date_str}[/yellow]")
+                console.print(
+                    f"[yellow]No HTML history found for {date_str}[/yellow]"
+                )
             else:
-                console.print("[yellow]No HTML history found for today[/yellow]")
+                console.print(
+                    "[yellow]No HTML history found for today[/yellow]"
+                )
             sys.exit(1)
 
         console.print(f"[blue]Opening {html_path} in browser...[/blue]")

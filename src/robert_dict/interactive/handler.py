@@ -1,14 +1,13 @@
 """Input handling and service routing for dictionary lookups and translations"""
 
 import logging
-from typing import Optional, Union
 
 from robert_dict.interactive.display import (
     display_error,
     display_translation_result,
     display_word_result,
 )
-from robert_dict.models import TranslationResult, WordResult
+from robert_dict.models import ConjugationResult, TranslationResult, WordResult
 from robert_dict.services.dictionary import DictionaryService
 from robert_dict.services.translation import ChatGPTTranslationService
 
@@ -31,8 +30,8 @@ class InputHandler:
         return len(text.strip().split()) == 1
 
     def process_input(
-        self, text: str, context: Optional[str] = None
-    ) -> Union[WordResult, TranslationResult, None]:
+        self, text: str, context: str | None = None
+    ) -> WordResult | ConjugationResult | TranslationResult | None:
         """
         Process user input and return result
 
@@ -56,8 +55,8 @@ class InputHandler:
             return self._translate_phrase(text, context)
 
     def _lookup_word_with_fallback(
-        self, word: str, context: Optional[str] = None
-    ) -> Union[WordResult, TranslationResult]:
+        self, word: str, context: str | None = None
+    ) -> WordResult | ConjugationResult | TranslationResult | None:
         """
         Try dictionary lookup first, fallback to translation on 404
 
@@ -66,13 +65,13 @@ class InputHandler:
             context: Optional context for fallback translation
 
         Returns:
-            WordResult or TranslationResult
+            WordResult, ConjugationResult, TranslationResult, or None on error
         """
         try:
             logger.debug(f"Looking up word in dictionary: {word}")
             result = self.dictionary_service.lookup_word(word)
             return result
-        except ValueError as e:
+        except ValueError:
             # Word not found (404)
             logger.debug(
                 f"Word not found in dictionary, falling back to translation: {word}"
@@ -84,8 +83,8 @@ class InputHandler:
             return None
 
     def _translate_phrase(
-        self, phrase: str, context: Optional[str] = None
-    ) -> Optional[TranslationResult]:
+        self, phrase: str, context: str | None = None
+    ) -> TranslationResult | None:
         """
         Translate phrase using translation service
 
@@ -105,12 +104,19 @@ class InputHandler:
             display_error(f"Failed to translate: {e}")
             return None
 
-    def display_result(self, result: Union[WordResult, TranslationResult, None]):
+    def display_result(
+        self,
+        result: WordResult | ConjugationResult | TranslationResult | None,
+    ):
         """Display the result using appropriate formatter"""
         if result is None:
             return
 
         if isinstance(result, WordResult):
             display_word_result(result)
+        elif isinstance(result, ConjugationResult):
+            # For now, display conjugation results like word results
+            # TODO: Add dedicated conjugation display formatter
+            display_word_result(result)  # type: ignore[arg-type]
         elif isinstance(result, TranslationResult):
             display_translation_result(result)

@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from rich import box
 from rich.console import Console
@@ -14,7 +13,9 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
-def display_history(date_str: Optional[str] = None, history_dir: Optional[Path] = None):
+def display_history(
+    date_str: str | None = None, history_dir: Path | None = None
+):
     """
     Display history for a specific date with all colors preserved
 
@@ -39,14 +40,16 @@ def display_history(date_str: Optional[str] = None, history_dir: Optional[Path] 
     # Display header
     display_name = date_str if date_str else "Today"
     header = Panel(
-        f"[blue]History for {display_name}[/blue]", box=box.ROUNDED, border_style="blue"
+        f"[blue]History for {display_name}[/blue]",
+        box=box.ROUNDED,
+        border_style="blue",
     )
     console.print(header)
     console.print()
 
     # Read and display the text file (contains ANSI color codes)
     try:
-        with open(txt_path, "r", encoding="utf-8") as f:
+        with open(txt_path, encoding="utf-8") as f:
             content = f.read()
             # Print raw content - Rich will interpret ANSI codes
             print(content)
@@ -57,12 +60,12 @@ def display_history(date_str: Optional[str] = None, history_dir: Optional[Path] 
     # Show footer with file locations
     console.print("\n" + "─" * 60)
     console.print(f"[dim]Text version: {txt_path}[/dim]")
-    if html_path.exists():
+    if html_path and html_path.exists():
         console.print(f"[dim]HTML version: {html_path}[/dim]")
         console.print(f"[dim]Open in browser: open {html_path}[/dim]")
 
 
-def list_available_dates(history_dir: Optional[Path] = None):
+def list_available_dates(history_dir: Path | None = None):
     """
     List all available history dates
 
@@ -81,7 +84,7 @@ def list_available_dates(history_dir: Optional[Path] = None):
         console.print(f"  • {date}")
 
 
-def interactive_browse(history_dir: Optional[Path] = None):
+def interactive_browse(history_dir: Path | None = None):
     """
     Interactive mode to browse through history
 

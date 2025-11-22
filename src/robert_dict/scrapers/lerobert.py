@@ -21,10 +21,9 @@ This module handles three types of dictionary lookups:
 
 import logging
 import re
-from typing import Any, Dict, List, Union
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from robert_dict.constants import BASE_URL, DEFAULT_TIMEOUT
 from robert_dict.models import ConjugationResult, Definition, WordResult
@@ -42,14 +41,16 @@ class LeRobertFetcher:
     def fetch_html(self, url: str) -> tuple[BeautifulSoup, str]:
         """Fetch HTML from URL and parse with BeautifulSoup"""
         try:
-            response = requests.get(url, timeout=self.timeout, allow_redirects=True)
+            response = requests.get(
+                url, timeout=self.timeout, allow_redirects=True
+            )
             response.raise_for_status()
         except requests.HTTPError as e:
             if e.response.status_code == 404:
-                raise ValueError(f"Word not found in dictionary")
+                raise ValueError("Word not found in dictionary") from None
             raise
         except requests.RequestException as e:
-            raise requests.RequestException(f"Failed to fetch: {e}")
+            raise requests.RequestException(f"Failed to fetch: {e}") from e
 
         soup = BeautifulSoup(response.content, "lxml")
         return soup, response.url
@@ -60,7 +61,9 @@ def _clean_text(text: str) -> str:
     if not text:
         return text
 
-    text = re.sub(r"Votre navigateur ne prend pas en charge l\'audio\.?", "", text)
+    text = re.sub(
+        r"Votre navigateur ne prend pas en charge l\'audio\.?", "", text
+    )
     text = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]", "", text)
     text = re.sub(r"\s+", " ", text)
     text = text.strip()
@@ -72,7 +75,11 @@ class DefinitionParser:
     """Parses definition pages from Le Robert dictionary"""
 
     def parse(
-        self, soup: BeautifulSoup, url: str, word: str, original_word: str = None
+        self,
+        soup: BeautifulSoup,
+        url: str,
+        word: str,
+        original_word: str | None = None,
     ) -> WordResult:
         """Parse definition page and return WordResult"""
         definitions = self._extract_definitions(soup)
@@ -88,12 +95,12 @@ class DefinitionParser:
             word_combinations=combinations,
         )
 
-    def _extract_definitions(self, soup: BeautifulSoup) -> List[Definition]:
+    def _extract_definitions(self, soup: BeautifulSoup) -> list[Definition]:
         """Extract word definitions from page"""
-        definitions = []
+        definitions: list[Definition] = []
 
         def_section = soup.find("section", class_="def")
-        if not def_section:
+        if not def_section or not isinstance(def_section, Tag):
             return definitions
 
         def_blocks = def_section.find_all("div", class_="b", recursive=False)
@@ -114,7 +121,9 @@ class DefinitionParser:
 
                 definitions.append(
                     Definition(
-                        category=category, definition=definition_text, examples=examples
+                        category=category,
+                        definition=definition_text,
+                        examples=examples,
                     )
                 )
 
@@ -129,14 +138,14 @@ class DefinitionParser:
             else ""
         )
 
-    def _find_definition_items(self, block) -> List:
+    def _find_definition_items(self, block: Tag) -> list[Tag]:
         """Find definition items in block"""
         def_items = block.find_all("div", class_="d_dvn")
         if not def_items:
             def_items = block.find_all("div", class_="d_ptma")
-        return def_items
+        return list(def_items)
 
-    def _extract_definition_examples(self, item) -> List[str]:
+    def _extract_definition_examples(self, item: Tag) -> list[str]:
         """Extract examples from a definition item"""
         examples = []
         xpl_elems = item.find_all("span", class_="d_xpl")
@@ -157,12 +166,12 @@ class DefinitionParser:
 
         return examples
 
-    def _extract_examples(self, soup: BeautifulSoup) -> List[str]:
+    def _extract_examples(self, soup: BeautifulSoup) -> list[str]:
         """Extract usage examples from page"""
-        examples = []
+        examples: list[str] = []
 
         ex_section = soup.find("section", class_="ex", id="exemples")
-        if not ex_section:
+        if not ex_section or not isinstance(ex_section, Tag):
             return examples
 
         example_divs = ex_section.find_all("div", class_="ex_example")
@@ -178,12 +187,12 @@ class DefinitionParser:
 
         return examples[:20]
 
-    def _extract_combinations(self, soup: BeautifulSoup) -> List[str]:
+    def _extract_combinations(self, soup: BeautifulSoup) -> list[str]:
         """Extract word combinations from page"""
-        combinations = []
+        combinations: list[str] = []
 
         collo_section = soup.find("section", class_="collo", id="collos")
-        if not collo_section:
+        if not collo_section or not isinstance(collo_section, Tag):
             return combinations
 
         combo_links = collo_section.find_all("div", class_="collolink")
@@ -235,38 +244,38 @@ class ConjugationParser:
     def extract_conjugation_url(self, soup: BeautifulSoup) -> str:
         """Extract conjugation URL from page"""
         conj_link_div = soup.find("div", class_="conj-link")
-        if not conj_link_div:
+        if not conj_link_div or not isinstance(conj_link_div, Tag):
             return ""
 
         conj_link = conj_link_div.find("a", href=True)
-        if not conj_link:
+        if not conj_link or not isinstance(conj_link, Tag):
             return ""
 
         url = conj_link.get("href")
-        if url.startswith("/"):
+        if isinstance(url, str) and url.startswith("/"):
             return f"https://dictionnaire.lerobert.com{url}"
-        return url
+        return str(url) if url else ""
 
     def extract_definition_url(self, soup: BeautifulSoup) -> str:
         """Extract definition URL from conjugation page"""
         def_link_elem = soup.find("div", class_="def-link")
-        if not def_link_elem:
+        if not def_link_elem or not isinstance(def_link_elem, Tag):
             return ""
 
         link = def_link_elem.find("a", href=True)
-        if not link:
+        if not link or not isinstance(link, Tag):
             return ""
 
         url = link.get("href")
-        if url.startswith("/"):
+        if isinstance(url, str) and url.startswith("/"):
             return f"https://dictionnaire.lerobert.com{url}"
-        return url
+        return str(url) if url else ""
 
     def _extract_present_conjugations(
         self, soup: BeautifulSoup
-    ) -> Dict[str, List[str]]:
+    ) -> dict[str, list[str]]:
         """Extract present tense conjugations sample"""
-        conjugations = {}
+        conjugations: dict[str, list[str]] = {}
         present_section = soup.find("h4", string="présent")
 
         if not present_section:
@@ -296,11 +305,17 @@ class LeRobertParser:
         self.conjugation_parser = ConjugationParser()
 
     def parse(
-        self, soup: BeautifulSoup, url: str, word: str, original_word: str = None
-    ) -> Union[WordResult, ConjugationResult]:
+        self,
+        soup: BeautifulSoup,
+        url: str,
+        word: str,
+        original_word: str | None = None,
+    ) -> WordResult | ConjugationResult:
         """Parse dictionary page and return appropriate result"""
         if self._is_conjugation_page(url):
-            return self.conjugation_parser.parse(soup, url, original_word or word)
+            return self.conjugation_parser.parse(
+                soup, url, original_word or word
+            )
         return self.definition_parser.parse(soup, url, word, original_word)
 
     def _is_conjugation_page(self, url: str) -> bool:
@@ -338,7 +353,7 @@ class LeRobertScraper:
         self.parser = LeRobertParser()
         logger.debug(f"Initialized LeRobertScraper with timeout={timeout}s")
 
-    def fetch(self, word: str) -> WordResult:
+    def fetch(self, word: str) -> WordResult | ConjugationResult:
         """
         Fetch dictionary definition for a word.
 
@@ -348,7 +363,7 @@ class LeRobertScraper:
             word: The word to look up
 
         Returns:
-            WordResult: Word definition with original_word preserved
+            WordResult or ConjugationResult: Word definition with original_word preserved
 
         Raises:
             ValueError: If word not found (HTTP 404)
@@ -362,7 +377,9 @@ class LeRobertScraper:
 
         # Check if we need to follow conjugation redirect (inflection page case)
         if self.parser.has_conjugation_link(soup):
-            soup, final_url, base_verb = self._follow_conjugation_redirect(soup, word)
+            soup, final_url, base_verb = self._follow_conjugation_redirect(
+                soup, word
+            )
             return self.parser.parse(soup, final_url, base_verb, original_word)
 
         return self.parser.parse(soup, final_url, word)
@@ -385,6 +402,9 @@ class LeRobertScraper:
 
         # First get the base form if it's a conjugated word
         definition_result = self.fetch(word)
+        if isinstance(definition_result, ConjugationResult):
+            # Already on conjugation page
+            return definition_result
         base_verb = definition_result.word
 
         # Fetch the conjugation page
@@ -424,10 +444,11 @@ if __name__ == "__main__":
     print("\n1. Looking up 'manger':")
     try:
         result = scraper.fetch("manger")
-        print(f"   Word: {result.word}")
-        print(f"   Original search: {result.original_word}")
-        print(f"   Definitions: {len(result.definitions)}")
-        print(f"   First: {result.definitions[0].definition[:80]}...")
+        if isinstance(result, WordResult):
+            print(f"   Word: {result.word}")
+            print(f"   Original search: {result.original_word}")
+            print(f"   Definitions: {len(result.definitions)}")
+            print(f"   First: {result.definitions[0].definition[:80]}...")
     except (ValueError, requests.RequestException) as e:
         print(f"   Error: {e}")
 
@@ -435,10 +456,11 @@ if __name__ == "__main__":
     print("\n2. Looking up 'mangeais' (conjugated form):")
     try:
         result = scraper.fetch("mangeais")
-        print(f"   Word: {result.word}")
-        print(f"   Original search: {result.original_word}")
-        print(f"   Definitions: {len(result.definitions)}")
-        print(f"   -> Automatically resolved to base verb!")
+        if isinstance(result, WordResult):
+            print(f"   Word: {result.word}")
+            print(f"   Original search: {result.original_word}")
+            print(f"   Definitions: {len(result.definitions)}")
+            print("   -> Automatically resolved to base verb!")
     except (ValueError, requests.RequestException) as e:
         print(f"   Error: {e}")
 
@@ -449,13 +471,13 @@ if __name__ == "__main__":
     # Example 3: Get conjugation table
     print("\n3. Getting conjugations for 'mangeais':")
     try:
-        result = scraper.fetch_conjugation("mangeais")
-        print(f"   Original word: {result.original_word}")
-        print(f"   Base form: {result.redirected_to}")
-        print(f"   Message: {result.message}")
+        conj_result = scraper.fetch_conjugation("mangeais")
+        print(f"   Original word: {conj_result.original_word}")
+        print(f"   Base form: {conj_result.redirected_to}")
+        print(f"   Message: {conj_result.message}")
         print(
-            f"   Présent conjugations: {result.conjugations_sample.get('présent', [])[:3]}..."
+            f"   Présent conjugations: {conj_result.conjugations_sample.get('présent', [])[:3]}..."
         )
-        print(f"   Full table at: {result.url}")
+        print(f"   Full table at: {conj_result.url}")
     except (ValueError, requests.RequestException) as e:
         print(f"   Error: {e}")
