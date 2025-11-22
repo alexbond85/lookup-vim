@@ -27,6 +27,7 @@ dev = [
 robert-dict = "robert_dict.cli:main"
 robert-translate = "robert_dict.cli_translate:main"
 robert-watch = "robert_dict.interactive.watcher:main"
+robert-history = "robert_dict.interactive.history_cli:main"
 
 [build-system]
 requires = ["hatchling"]

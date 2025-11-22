@@ -208,3 +208,5 @@ __marimo__/
 
 # Temporary grep data from vim plugin
 tmp/
+.DS_Store
+/history

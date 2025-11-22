@@ -17,7 +17,9 @@ from robert_dict.scrapers.lerobert import LeRobertScraper
 from robert_dict.services.dictionary import DictionaryService
 from robert_dict.services.translation import ChatGPTTranslationService
 from robert_dict.interactive.handler import InputHandler
-from robert_dict.interactive.display import display_greeting, display_prompt, display_error
+from robert_dict.interactive.display import display_greeting, display_prompt, display_error, console
+from robert_dict.interactive.history import HistoryLogger
+from robert_dict.interactive.history_viewer import display_history
 
 
 logging.basicConfig(level=logging.WARNING)
@@ -106,6 +108,9 @@ class InteractiveDictionaryWatcher:
         dictionary_service = DictionaryService(scraper)
         translation_service = ChatGPTTranslationService()
         self.handler = InputHandler(dictionary_service, translation_service)
+        
+        # Initialize history logger
+        self.history = HistoryLogger(console)
     
     def start(self):
         """Start the interactive watcher"""
@@ -120,6 +125,7 @@ class InteractiveDictionaryWatcher:
             print("\n\n👋 Goodbye!")
         finally:
             self._stop_file_watcher()
+            self.history.save_session()
     
     def _start_file_watcher(self):
         """Start watchdog observer for file monitoring"""
@@ -230,6 +236,11 @@ class InteractiveDictionaryWatcher:
     
     def _process_user_input(self, user_input: str):
         """Process console input from user"""
+        
+        # Check for history command
+        if user_input.lower() in ('h', 'history'):
+            display_history()
+            return
         
         # Check for special commands
         if user_input == '1' and self.current_phrase:

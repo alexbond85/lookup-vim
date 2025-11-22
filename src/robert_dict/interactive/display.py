@@ -9,7 +9,8 @@ from rich import box
 from robert_dict.models import WordResult, TranslationResult
 
 
-console = Console()
+# Console with recording enabled for history logging
+console = Console(record=True)
 
 
 def display_greeting():
@@ -109,8 +110,8 @@ def display_error(message: str):
 def display_prompt(has_context: bool = False):
     """Display input prompt with available options"""
     if has_context:
-        console.print("[dim]Options: [1] Translate phrase | [2] Translate paragraph | [word/phrase] New lookup | [q/exit] Quit[/dim]")
+        console.print("[dim]Options: [1] Translate phrase | [2] Translate paragraph | [h]istory | [q/exit] Quit[/dim]")
     else:
-        console.print("[dim]Enter word/phrase to lookup, or [q/exit] to quit[/dim]")
+        console.print("[dim]Enter word/phrase, [h]istory to view, or [q/exit] to quit[/dim]")
     console.print("[blue]>[/blue] ", end="")
 
