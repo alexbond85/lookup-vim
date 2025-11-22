@@ -25,8 +25,8 @@ import re
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from robert_dict.constants import BASE_URL, DEFAULT_TIMEOUT
-from robert_dict.models import ConjugationResult, Definition, WordResult
+from lookup_vim.constants import BASE_URL, DEFAULT_TIMEOUT
+from lookup_vim.models import ConjugationResult, Definition, WordResult
 
 logger = logging.getLogger(__name__)
 

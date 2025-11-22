@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
 
-from robert_dict.models import TranslationResult
+from lookup_vim.models import TranslationResult
 
 load_dotenv()
 

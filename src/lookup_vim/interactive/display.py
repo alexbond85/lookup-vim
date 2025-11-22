@@ -4,7 +4,7 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 
-from robert_dict.models import TranslationResult, WordResult
+from lookup_vim.models import TranslationResult, WordResult
 
 # Console with recording enabled for history logging
 console = Console(record=True)

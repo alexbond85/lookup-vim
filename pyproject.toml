@@ -1,7 +1,7 @@
 [project]
-name = "robert-dict"
+name = "lookup-vim"
 version = "0.1.0"
-description = "A CLI tool to fetch French dictionary definitions from Le Robert"
+description = "A CLI tool for reading foreign language books with integrated dictionary lookups and translations, seamlessly integrated with Vim"
 authors = [
     {name = "Alex Bond"}
 ]
@@ -28,17 +28,17 @@ dev = [
 ]
 
 [project.scripts]
-robert-dict = "robert_dict.cli:main"
-robert-translate = "robert_dict.cli_translate:main"
-robert-watch = "robert_dict.interactive.watcher:main"
-robert-history = "robert_dict.interactive.history_cli:main"
+lookup = "lookup_vim.cli:main"
+lookup-translate = "lookup_vim.cli_translate:main"
+lookup-watch = "lookup_vim.interactive.watcher:main"
+lookup-history = "lookup_vim.interactive.history_cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/robert_dict"]
+packages = ["src/lookup_vim"]
 
 [tool.ruff]
 line-length = 79

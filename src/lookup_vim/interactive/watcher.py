@@ -15,18 +15,18 @@ from watchdog.observers import Observer
 if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
 
-from robert_dict.interactive.display import (
+from lookup_vim.interactive.display import (
     console,
     display_error,
     display_greeting,
     display_prompt,
 )
-from robert_dict.interactive.handler import InputHandler
-from robert_dict.interactive.history import HistoryLogger
-from robert_dict.interactive.history_viewer import display_history
-from robert_dict.scrapers.lerobert import LeRobertScraper
-from robert_dict.services.dictionary import DictionaryService
-from robert_dict.services.translation import ChatGPTTranslationService
+from lookup_vim.interactive.handler import InputHandler
+from lookup_vim.interactive.history import HistoryLogger
+from lookup_vim.interactive.history_viewer import display_history
+from lookup_vim.scrapers.lerobert import LeRobertScraper
+from lookup_vim.services.dictionary import DictionaryService
+from lookup_vim.services.translation import ChatGPTTranslationService
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)

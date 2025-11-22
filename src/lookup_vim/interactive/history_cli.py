@@ -8,8 +8,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from robert_dict.interactive.history import HistoryLogger
-from robert_dict.interactive.history_viewer import (
+from lookup_vim.interactive.history import HistoryLogger
+from lookup_vim.interactive.history_viewer import (
     display_history,
     interactive_browse,
     list_available_dates,

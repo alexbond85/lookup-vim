@@ -7,7 +7,7 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 
-from robert_dict.interactive.history import HistoryLogger
+from lookup_vim.interactive.history import HistoryLogger
 
 logger = logging.getLogger(__name__)
 console = Console()

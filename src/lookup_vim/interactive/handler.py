@@ -2,14 +2,14 @@
 
 import logging
 
-from robert_dict.interactive.display import (
+from lookup_vim.interactive.display import (
     display_error,
     display_translation_result,
     display_word_result,
 )
-from robert_dict.models import ConjugationResult, TranslationResult, WordResult
-from robert_dict.services.dictionary import DictionaryService
-from robert_dict.services.translation import ChatGPTTranslationService
+from lookup_vim.models import ConjugationResult, TranslationResult, WordResult
+from lookup_vim.services.dictionary import DictionaryService
+from lookup_vim.services.translation import ChatGPTTranslationService
 
 logger = logging.getLogger(__name__)
 
