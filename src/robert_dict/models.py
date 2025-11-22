@@ -7,6 +7,7 @@ from typing import List, Optional
 @dataclass
 class Definition:
     """A single definition with its category and examples"""
+
     category: str
     definition: str
     examples: List[str] = field(default_factory=list)
@@ -15,6 +16,7 @@ class Definition:
 @dataclass
 class WordResult:
     """Result of a word lookup containing definitions and usage information"""
+
     word: str
     url: str
     original_word: Optional[str] = None
@@ -26,6 +28,7 @@ class WordResult:
 @dataclass
 class ConjugationResult:
     """Result when a word redirects to a conjugation page"""
+
     original_word: str
     redirected_to: str
     url: str
@@ -37,6 +40,7 @@ class ConjugationResult:
 @dataclass
 class TranslationResult:
     """Result of a translation request with explanations"""
+
     query: str
     translation: str
     explanations: str

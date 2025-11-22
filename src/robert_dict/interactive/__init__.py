@@ -2,5 +2,4 @@
 
 from robert_dict.interactive.watcher import main
 
-__all__ = ['main']
-
+__all__ = ["main"]
