@@ -225,7 +225,8 @@ function! s:LookupWord(...)
     let data = {
         \ 'selection': word,
         \ 'phrase': sentence,
-        \ 'paragraph': paragraph
+        \ 'paragraph': paragraph,
+        \ 'file': expand('%:p')
         \ }
     
     " Write JSON to FIFO (single line, backgrounded)

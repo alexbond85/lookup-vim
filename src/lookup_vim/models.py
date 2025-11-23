@@ -44,3 +44,13 @@ class TranslationResult:
     translation: str
     explanations: str
     context: str | None = None
+
+
+@dataclass
+class SelectionData:
+    """Data captured from text selection in Vim"""
+
+    selection: str
+    phrase: str
+    paragraph: str
+    file: str = ""

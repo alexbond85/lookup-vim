@@ -4,7 +4,7 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 
-from lookup_vim.models import TranslationResult, WordResult
+from lookup_vim.models import ConjugationResult, TranslationResult, WordResult
 
 # Console with recording enabled for history logging
 console = Console(record=True)
@@ -121,3 +121,16 @@ def display_prompt(has_context: bool = False):
             "[dim]Enter word/phrase, [h]istory to view, or [q/exit] to quit[/dim]"
         )
     console.print("[blue]>[/blue] ", end="")
+
+
+def display_result(
+    result: WordResult | ConjugationResult | TranslationResult | None,
+) -> None:
+    """Polymorphic display dispatcher for all result types"""
+    if result is None:
+        return
+
+    if isinstance(result, (WordResult, ConjugationResult)):
+        display_word_result(result)  # type: ignore[arg-type]
+    elif isinstance(result, TranslationResult):
+        display_translation_result(result)
