@@ -28,8 +28,6 @@ dev = [
 ]
 
 [project.scripts]
-lookup = "lookup_vim.cli:main"
-lookup-translate = "lookup_vim.cli_translate:main"
 lookup-watch = "lookup_vim.interactive.watcher:main"
 lookup-history = "lookup_vim.interactive.history_cli:main"
 
