@@ -3,6 +3,132 @@
 " Usage: Press ,, on any word or visual selection to grep it to a file with context
 
 " ============================================================================
+" Highlighting Setup
+" ============================================================================
+
+" Define highlight group for looked-up words/phrases
+" Link to CursorLine to match theme's hover color
+highlight default link LookupHighlight CursorLine
+
+" Store match IDs per buffer to keep highlights persistent
+if !exists('g:lookup_highlights')
+    let g:lookup_highlights = {}
+endif
+
+" Store the patterns for each buffer (so we can recreate highlights)
+if !exists('g:lookup_patterns')
+    let g:lookup_patterns = {}
+endif
+
+" Track whether highlights are currently visible
+if !exists('g:lookup_highlights_visible')
+    let g:lookup_highlights_visible = 1
+endif
+
+" Initialize highlights for current buffer
+function! s:InitBufferHighlights()
+    let bufnr = bufnr('%')
+    if !has_key(g:lookup_highlights, bufnr)
+        let g:lookup_highlights[bufnr] = []
+    endif
+    if !has_key(g:lookup_patterns, bufnr)
+        let g:lookup_patterns[bufnr] = []
+    endif
+endfunction
+
+" Add highlight for text
+function! s:HighlightText(text)
+    call s:InitBufferHighlights()
+    let bufnr = bufnr('%')
+    
+    " Escape special regex characters for very nomagic mode
+    " In \V mode, only backslash is special, so escape backslash and forward slash
+    let escaped = escape(a:text, '\/&~')
+    let pattern = '\V' . escaped
+    
+    " Store the pattern for this buffer
+    call add(g:lookup_patterns[bufnr], a:text)
+    
+    " Add the match and store the ID (only if highlights are visible)
+    if g:lookup_highlights_visible
+        try
+            let match_id = matchadd('LookupHighlight', pattern, 10)
+            call add(g:lookup_highlights[bufnr], match_id)
+            echo "Highlighted: " . a:text
+        catch /^Vim\%((\a\+)\)\=:E/
+            echo "Failed to highlight: " . a:text . " (pattern: " . pattern . ")"
+        endtry
+    else
+        echo "Added to highlights (currently hidden): " . a:text
+    endif
+endfunction
+
+" Clear all highlights for current buffer
+function! s:ClearHighlights()
+    let bufnr = bufnr('%')
+    if has_key(g:lookup_highlights, bufnr)
+        for match_id in g:lookup_highlights[bufnr]
+            silent! call matchdelete(match_id)
+        endfor
+        let g:lookup_highlights[bufnr] = []
+    endif
+    if has_key(g:lookup_patterns, bufnr)
+        let g:lookup_patterns[bufnr] = []
+    endif
+    echo "Cleared all lookup highlights"
+endfunction
+
+" Hide all highlights (but keep them tracked)
+function! s:HideHighlights()
+    " Remove all match highlights
+    for bufnr in keys(g:lookup_highlights)
+        if has_key(g:lookup_highlights, bufnr)
+            for match_id in g:lookup_highlights[bufnr]
+                silent! call matchdelete(match_id)
+            endfor
+            let g:lookup_highlights[bufnr] = []
+        endif
+    endfor
+    let g:lookup_highlights_visible = 0
+    echo "Lookup highlights hidden"
+endfunction
+
+" Show all highlights
+function! s:ShowHighlights()
+    " Recreate highlights from stored patterns
+    for bufnr in keys(g:lookup_patterns)
+        if has_key(g:lookup_patterns, bufnr) && len(g:lookup_patterns[bufnr]) > 0
+            " Switch to the buffer temporarily if needed
+            let current_buf = bufnr('%')
+            if current_buf == bufnr
+                " We're in the right buffer, add highlights
+                for text in g:lookup_patterns[bufnr]
+                    let escaped = escape(text, '\/&~')
+                    let pattern = '\V' . escaped
+                    try
+                        let match_id = matchadd('LookupHighlight', pattern, 10)
+                        call add(g:lookup_highlights[bufnr], match_id)
+                    catch
+                        " Silently skip if pattern fails
+                    endtry
+                endfor
+            endif
+        endif
+    endfor
+    let g:lookup_highlights_visible = 1
+    echo "Lookup highlights shown"
+endfunction
+
+" Toggle highlights visibility
+function! s:ToggleHighlights()
+    if g:lookup_highlights_visible
+        call s:HideHighlights()
+    else
+        call s:ShowHighlights()
+    endif
+endfunction
+
+" ============================================================================
 " Context Extraction Functions
 " ============================================================================
 
@@ -117,6 +243,9 @@ function! s:LookupWord(...)
     
     let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
     silent! call system(script_path)
+    
+    " Highlight the looked-up word
+    call s:HighlightText(word)
 endfunction
 
 function! s:GetWord(args)
@@ -129,23 +258,22 @@ endfunction
 
 " Get visually selected text
 function! s:GetVisualSelection()
-    let [line_start, column_start] = getpos("'<")[1:2]
-    let [line_end, column_end] = getpos("'>")[1:2]
-    let lines = getline(line_start, line_end)
+    " Save the current register content
+    let old_reg = @"
     
-    if len(lines) == 0
-        return ''
-    endif
+    " Yank the visual selection into the unnamed register
+    normal! gvy
     
-    " Handle single line selection
-    if len(lines) == 1
-        return lines[0][column_start - 1 : column_end - 1]
-    endif
+    " Get the yanked text
+    let text = @"
     
-    " Handle multi-line selection
-    let lines[-1] = lines[-1][: column_end - 1]
-    let lines[0] = lines[0][column_start - 1:]
-    return join(lines, ' ')
+    " Restore the old register content
+    let @" = old_reg
+    
+    " Replace newlines with spaces for multi-line selections
+    let text = substitute(text, '\n', ' ', 'g')
+    
+    return text
 endfunction
 
 function! s:LookupVisualSelection()
@@ -175,6 +303,9 @@ function! s:LookupVisualSelection()
     
     let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
     silent! call system(script_path)
+    
+    " Highlight the looked-up phrase
+    call s:HighlightText(text)
 endfunction
 
 " ============================================================================
@@ -184,6 +315,10 @@ endfunction
 command! -nargs=? SelectionGrep call s:LookupWord(<q-args>)
 command! -nargs=? SGrep call s:LookupWord(<q-args>)
 command! -nargs=? Grep call s:LookupWord(<q-args>)
+command! ClearLookupHighlights call s:ClearHighlights()
+command! ToggleLookupHighlights call s:ToggleHighlights()
+command! HideLookupHighlights call s:HideHighlights()
+command! ShowLookupHighlights call s:ShowHighlights()
 
 " Keybindings
 nnoremap <leader>g :SelectionGrep<CR>
@@ -191,6 +326,12 @@ nnoremap ,, :SelectionGrep<CR>
 
 " Visual mode keybinding - grep selected text
 vnoremap ,, :<C-u>call <SID>LookupVisualSelection()<CR>
+
+" Toggle highlights visibility
+nnoremap <leader>th :ToggleLookupHighlights<CR>
+
+" Clear highlights permanently
+nnoremap <leader>ch :ClearLookupHighlights<CR>
 
 " Optional keybindings (uncomment to enable)
 " nnoremap K :SelectionGrep<CR>
