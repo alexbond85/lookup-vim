@@ -9,7 +9,7 @@ from lookup_vim.interactive.display import (
 )
 from lookup_vim.models import ConjugationResult, TranslationResult, WordResult
 from lookup_vim.services.dictionary import DictionaryService
-from lookup_vim.services.translation import ChatGPTTranslationService
+from lookup_vim.services.translation import TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class InputHandler:
     def __init__(
         self,
         dictionary_service: DictionaryService,
-        translation_service: ChatGPTTranslationService,
+        translation_service: TranslationService,
     ):
         self.dictionary_service = dictionary_service
         self.translation_service = translation_service

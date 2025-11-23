@@ -54,12 +54,10 @@ function! s:HighlightText(text)
         try
             let match_id = matchadd('LookupHighlight', pattern, 10)
             call add(g:lookup_highlights[bufnr], match_id)
-            echo "Highlighted: " . a:text
+            " Silently highlight without triggering press-enter prompt
         catch /^Vim\%((\a\+)\)\=:E/
-            echo "Failed to highlight: " . a:text . " (pattern: " . pattern . ")"
+            " Silently fail
         endtry
-    else
-        echo "Added to highlights (currently hidden): " . a:text
     endif
 endfunction
 
@@ -75,7 +73,6 @@ function! s:ClearHighlights()
     if has_key(g:lookup_patterns, bufnr)
         let g:lookup_patterns[bufnr] = []
     endif
-    echo "Cleared all lookup highlights"
 endfunction
 
 " Hide all highlights (but keep them tracked)
@@ -90,7 +87,6 @@ function! s:HideHighlights()
         endif
     endfor
     let g:lookup_highlights_visible = 0
-    echo "Lookup highlights hidden"
 endfunction
 
 " Show all highlights
@@ -116,7 +112,6 @@ function! s:ShowHighlights()
         endif
     endfor
     let g:lookup_highlights_visible = 1
-    echo "Lookup highlights shown"
 endfunction
 
 " Toggle highlights visibility
@@ -307,17 +302,17 @@ command! HideLookupHighlights call s:HideHighlights()
 command! ShowLookupHighlights call s:ShowHighlights()
 
 " Keybindings
-nnoremap <leader>g :SelectionGrep<CR>
-nnoremap ,, :SelectionGrep<CR>
+nnoremap <silent> <leader>g :SelectionGrep<CR>
+nnoremap <silent> ,, :SelectionGrep<CR>
 
 " Visual mode keybinding - grep selected text
-vnoremap ,, :<C-u>call <SID>LookupVisualSelection()<CR>
+vnoremap <silent> ,, :<C-u>call <SID>LookupVisualSelection()<CR>
 
 " Toggle highlights visibility
-nnoremap <leader>th :ToggleLookupHighlights<CR>
+nnoremap <silent> <leader>th :ToggleLookupHighlights<CR>
 
 " Clear highlights permanently
-nnoremap <leader>ch :ClearLookupHighlights<CR>
+nnoremap <silent> <leader>ch :ClearLookupHighlights<CR>
 
 " Optional keybindings (uncomment to enable)
 " nnoremap K :SelectionGrep<CR>

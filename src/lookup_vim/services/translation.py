@@ -1,106 +1,55 @@
-"""ChatGPT-based translation service with contextual explanations"""
+"""Translation service with dependency injection"""
 
-from dotenv import load_dotenv
-from openai import OpenAI
+from typing import cast
+
 from pydantic import BaseModel
 
 from lookup_vim.models import TranslationResult
-
-load_dotenv()
+from lookup_vim.translators.base import TranslationProvider
 
 
 class TranslationOutput(BaseModel):
-    """Structured output format for ChatGPT translation"""
+    """Structured output format for translation"""
 
     translation: str
     explanations: str
 
 
-class ChatGPTTranslationService:
-    """Service for translating text between languages with contextual explanations"""
+class TranslationService:
+    """High-level translation service that delegates to a translation provider"""
 
-    def __init__(
-        self,
-        api_key: str | None = None,
-        model: str = "gpt-5.1",
-        source_lang: str = "French",
-        target_lang: str = "Russian",
-    ):
+    def __init__(self, provider: TranslationProvider):
         """
-        Initialize the ChatGPT translation service
+        Initialize the translation service
 
         Args:
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
-            model: OpenAI model to use (default: gpt-5.1)
-            source_lang: Source language for translation (default: French)
-            target_lang: Target language for translation (default: Russian)
+            provider: Translation provider implementation (e.g., ChatGPTTranslator)
         """
-        self.client = OpenAI(api_key=api_key)
-        self.model = model
-        self.source_lang = source_lang
-        self.target_lang = target_lang
+        self.provider = provider
 
     def translate(
         self, query: str, context: str | None = None
     ) -> TranslationResult:
         """
-        Translate a word/expression between the configured languages with detailed explanations
+        Translate a word/expression with detailed explanations
 
         Args:
             query: The word or expression to translate
-            context: Optional paragraph providing context for the query
+            context: Optional context (phrase/paragraph) for the query
 
         Returns:
             TranslationResult containing translation and explanations
         """
-        # Build the user prompt
-        if context:
-            user_content = f"""Le mot/expression "{query}" a été sélectionné dans ce contexte :
-
-"{context}"
-
-Donne une réponse courte et utile :
-1. Traduction en {self.target_lang}
-2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
-3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
-        else:
-            user_content = f"""Traduis le mot/expression {self.source_lang} "{query}" en {self.target_lang} et donne une réponse courte et utile :
-1. Traduction
-2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
-3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
-
-        # Call OpenAI API with structured output
-        response = self.client.responses.parse(
-            model=self.model,
-            input=[
-                {
-                    "role": "system",
-                    "content": f"Tu es un traducteur du {self.source_lang} vers le {self.target_lang}. Donne des traductions et explications courtes et précises. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot.",
-                },
-                {"role": "user", "content": user_content},
-            ],
-            text_format=TranslationOutput,
-            text={"verbosity": "low"},
+        # Call the provider with the structured output model
+        output = cast(
+            TranslationOutput,
+            self.provider.translate(query, context, TranslationOutput),
         )
 
-        # Extract the parsed output
-        output = response.output_parsed
-
-        if output is None:
-            raise ValueError("Translation failed: no output from API")
-
-        # Create and return TranslationResult
+        # Convert to TranslationResult for backward compatibility
         return TranslationResult(
             query=query,
             translation=output.translation,
             explanations=output.explanations,
             context=context,
         )
-
-
-if __name__ == "__main__":
-    service = ChatGPTTranslationService(
-        source_lang="French", target_lang="Russian"
-    )
-    result = service.translate("l'optimisation des performances")
-    print(result)

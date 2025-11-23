@@ -19,7 +19,9 @@ from lookup_vim.interactive.history import HistoryLogger
 from lookup_vim.interactive.history_viewer import display_history
 from lookup_vim.scrapers.lerobert import LeRobertScraper
 from lookup_vim.services.dictionary import DictionaryService
-from lookup_vim.services.translation import ChatGPTTranslationService
+from lookup_vim.services.translation import TranslationService
+from lookup_vim.translators.chatgpt import ChatGPTTranslator
+from lookup_vim.translators.llm import StructuredLLM
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -48,7 +50,17 @@ class InteractiveDictionaryWatcher:
         # Initialize services
         scraper = LeRobertScraper()
         dictionary_service = DictionaryService(scraper)
-        translation_service = ChatGPTTranslationService()
+
+        # Initialize translation with DI: LLM -> Translator -> Service
+        llm = StructuredLLM(
+            model="gpt-5.1",
+            system_prompt="Tu es un traducteur du French vers le Russian. Donne des traductions et explications courtes et précises. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot.",
+        )
+        translator = ChatGPTTranslator(
+            llm=llm, source_lang="French", target_lang="Russian"
+        )
+        translation_service = TranslationService(provider=translator)
+
         self.handler = InputHandler(dictionary_service, translation_service)
 
         # Initialize history logger
@@ -93,20 +105,25 @@ class InteractiveDictionaryWatcher:
         while True:
             # Display prompt when needed
             if print_prompt:
-                has_context = bool(self.current_phrase or self.current_paragraph)
+                has_context = bool(
+                    self.current_phrase or self.current_paragraph
+                )
                 display_prompt(has_context)
                 print_prompt = False
 
             # Wait for input from either stdin or FIFO
             try:
-                ready, _, _ = select.select([sys.stdin, self.fifo], [], [], 1.0)
-            except select.error:
+                ready, _, _ = select.select(
+                    [sys.stdin, self.fifo], [], [], 1.0
+                )
+            except OSError:
                 # Handle interrupted system call
                 continue
 
             # Check FIFO for Vim selections
             if self.fifo in ready:
                 try:
+                    assert self.fifo is not None  # Type narrowing for mypy
                     line = self.fifo.readline().strip()
                     if line:
                         data = json.loads(line)
