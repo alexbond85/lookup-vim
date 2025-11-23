@@ -43,19 +43,11 @@ class ChatGPTTranslator(TranslationProvider):
         """
         # Build the user prompt based on whether context is provided
         if context:
-            user_prompt = f"""Le mot/expression "{query}" a été sélectionné dans ce contexte :
+            user_prompt = f""""{query}" dans : "{context}"
 
-"{context}"
-
-Donne une réponse courte et utile :
-1. Traduction en {self.target_lang}
-2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
-3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
+Traduis uniquement "{query}" en {self.target_lang}. Explique brièvement le sens dans ce contexte. Ajoute seulement si utile : nuances, usage, remarques."""
         else:
-            user_prompt = f"""Traduis le mot/expression {self.source_lang} "{query}" en {self.target_lang} et donne une réponse courte et utile :
-1. Traduction
-2. Sens littéral et explication (seulement si cela aide à comprendre le mot/expression)
-3. Remarques supplémentaires (étymologie, connotation, nuances) - seulement si c'est important pour la compréhension"""
+            user_prompt = f"""Traduis "{query}" en {self.target_lang}. Explique brièvement. Ajoute seulement si utile : nuances, usage, remarques."""
 
         # Call the LLM with the prompt and output model
         return self.llm.generate(user_prompt, output_model)

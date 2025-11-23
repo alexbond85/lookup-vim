@@ -1,5 +1,4 @@
 import logging
-from dataclasses import asdict
 
 from lookup_vim.cache.base import CacheBase
 from lookup_vim.models import (
@@ -79,6 +78,14 @@ class LookupDataLayer:
         """Lookup single word with dictionary, fallback to translation"""
         try:
             result = self.dictionary_service.lookup_word(word)
+            
+            # Check if result is meaningful (has definitions or is a conjugation)
+            if isinstance(result, WordResult) and not result.definitions:
+                logger.debug(
+                    f"Dictionary returned empty result, falling back to translation: {word}"
+                )
+                return self._lookup_phrase(word, phrase, selection_data)
+            
             # Try to cache, but don't fail if caching fails
             try:
                 self.cache.set(
@@ -125,10 +132,50 @@ class LookupDataLayer:
         self, result: WordResult | ConjugationResult | TranslationResult
     ) -> dict:
         """Convert result to dict for caching"""
-        return {
-            "type": type(result).__name__,
-            "data": asdict(result),
-        }
+        # Manual serialization to ensure JSON compatibility
+        if isinstance(result, WordResult):
+            return {
+                "type": "WordResult",
+                "data": {
+                    "word": result.word,
+                    "url": result.url,
+                    "original_word": result.original_word,
+                    "definitions": [
+                        {
+                            "category": d.category,
+                            "definition": d.definition,
+                            "examples": d.examples,
+                        }
+                        for d in result.definitions
+                    ],
+                    "usage_examples": result.usage_examples,
+                    "word_combinations": result.word_combinations,
+                },
+            }
+        elif isinstance(result, ConjugationResult):
+            return {
+                "type": "ConjugationResult",
+                "data": {
+                    "original_word": result.original_word,
+                    "redirected_to": result.redirected_to,
+                    "url": result.url,
+                    "definition_url": result.definition_url,
+                    "conjugations_sample": result.conjugations_sample,
+                    "message": result.message,
+                },
+            }
+        elif isinstance(result, TranslationResult):
+            return {
+                "type": "TranslationResult",
+                "data": {
+                    "query": result.query,
+                    "translation": result.translation,
+                    "explanations": result.explanations,
+                    "context": result.context,
+                },
+            }
+        else:
+            raise TypeError(f"Unknown result type: {type(result)}")
 
     def _deserialize_result(
         self, data: dict

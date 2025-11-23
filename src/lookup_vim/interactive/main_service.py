@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 class ConversationBuffer:
     """Manages follow-up conversation state with LLM"""
 
-    def __init__(self):
+    def __init__(self, source_lang: str, target_lang: str):
+        self.source_lang = source_lang
+        self.target_lang = target_lang
         self.messages: list[dict[str, str]] = []
         self.last_query: str | None = None
         self.last_result: str | None = None
@@ -44,7 +46,7 @@ class ConversationBuffer:
         # Add system context and initial result
         self.messages.append({
             "role": "system",
-            "content": "You are a helpful language learning assistant. The user is reading in French and may ask questions about words, phrases, grammar, or translations they've looked up."
+            "content": f"Aide à la lecture en {self.source_lang} pour locuteur {self.target_lang}. Parle {self.source_lang}/{self.target_lang} uniquement. Apprenant avancé. Réponses brèves et ciblées."
         })
         self.messages.append({
             "role": "assistant",
@@ -80,16 +82,19 @@ class ConversationBuffer:
 class MainLookupService:
     """Main service coordinating FIFO reading and data layer"""
 
-    def __init__(self, fifo_path: Path, cache_type: str = "memory"):
+    def __init__(self, fifo_path: Path, cache_type: str = "memory", 
+                 source_lang: str = "French", target_lang: str = "Russian"):
         self.fifo_path = fifo_path
         self.fifo = None
+        self.source_lang = source_lang
+        self.target_lang = target_lang
 
         # Current context for phrase/paragraph translation options
         self.current_phrase: str | None = None
         self.current_paragraph: str | None = None
 
         # Conversation buffer for follow-up questions
-        self.conversation = ConversationBuffer()
+        self.conversation = ConversationBuffer(source_lang, target_lang)
 
         # Initialize cache
         cache = create_cache(cache_type)
@@ -101,10 +106,10 @@ class MainLookupService:
         # LLM for translation
         translation_llm = StructuredLLM(
             model="gpt-5.1",
-            system_prompt="Tu es un traducteur du French vers le Russian. Donne des traductions et explications courtes et précises. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot.",
+            system_prompt=f"Aide à la lecture en {source_lang} pour locuteur {target_lang}. Parle {source_lang}/{target_lang} uniquement. Apprenant avancé. Traduction en {target_lang}, explications brèves et ciblées.",
         )
         translator = ChatGPTTranslator(
-            llm=translation_llm, source_lang="French", target_lang="Russian"
+            llm=translation_llm, source_lang=source_lang, target_lang=target_lang
         )
         
         # Separate LLM for follow-up conversations (no structured output)
@@ -215,7 +220,7 @@ class MainLookupService:
                         print("\nService stopped")
                         return
 
-                    # Process user input (supports multi-line paste)
+                    # Process user input
                     self._process_console_input(user_input)
 
                 except EOFError:
@@ -288,29 +293,18 @@ class MainLookupService:
             display_error("Option not available in current context")
             return
         
-        # Regular word/phrase lookup with multi-line paste support
+        # Regular word/phrase lookup - treat multi-line input as single query
         # This resets the conversation as it's a new query
         self.conversation.reset()
         
-        lines = user_input.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Skip quit commands in multi-line paste
-            if line.lower() in ("q", "quit", "exit"):
-                continue
-            
-            # Create selection data and process
-            selection_data = SelectionData(
-                selection=line,
-                phrase="",
-                paragraph="",
-                file=""
-            )
-            self._process_selection(selection_data)
+        # Create selection data and process (keeping newlines intact)
+        selection_data = SelectionData(
+            selection=user_input,
+            phrase="",
+            paragraph="",
+            file=""
+        )
+        self._process_selection(selection_data)
 
     def _handle_follow_up(self, question: str):
         """Handle follow-up question about the last result"""
