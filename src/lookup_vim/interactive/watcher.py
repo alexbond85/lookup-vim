@@ -1,20 +1,13 @@
-"""Main watcher script with file monitoring and console input"""
+"""Main watcher script with FIFO and console input"""
 
 import json
 import logging
+import os
 import select
 import sys
-import time
 from pathlib import Path
-from queue import Empty, Queue
-from typing import TYPE_CHECKING
 
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
-
-if TYPE_CHECKING:
-    from watchdog.observers.api import BaseObserver
-
+from lookup_vim.constants import FIFO_PATH
 from lookup_vim.interactive.display import (
     console,
     display_error,
@@ -33,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class SelectionData:
-    """Container for selection data from JSON file"""
+    """Container for selection data from JSON"""
 
     def __init__(self, selection: str, phrase: str = "", paragraph: str = ""):
         self.selection = selection
@@ -41,69 +34,12 @@ class SelectionData:
         self.paragraph = paragraph
 
 
-class SelectionFileHandler(FileSystemEventHandler):
-    """Handles file modification events for selection.json"""
-
-    def __init__(self, file_path: Path, change_queue: Queue):
-        self.file_path = file_path
-        self.change_queue = change_queue
-        self.last_modified: float = 0.0
-
-    def on_modified(self, event):
-        """Handle file modification event"""
-        # Convert both to absolute paths for comparison
-        event_path = str(Path(event.src_path).resolve())
-        target_path = str(self.file_path.resolve())
-
-        if event_path != target_path:
-            return
-
-        # Debounce: avoid duplicate events
-        current_time = time.time()
-        if current_time - self.last_modified < 0.5:
-            return
-        self.last_modified = current_time
-
-        try:
-            data = self._read_selection_file()
-            if data:
-                self.change_queue.put(data)
-                logger.debug(f"File changed, added to queue: {data.selection}")
-        except Exception as e:
-            logger.error(f"Error reading selection file: {e}")
-
-    def _read_selection_file(self) -> SelectionData | None:
-        """Read and parse selection.json file"""
-        try:
-            # Small delay to ensure file write is complete
-            time.sleep(0.1)
-
-            with open(self.file_path, encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    return None
-                data = json.loads(content)
-
-            selection = data.get("selection", "").strip()
-            phrase = data.get("phrase", "").strip()
-            paragraph = data.get("paragraph", "").strip()
-
-            if not selection:
-                return None
-
-            return SelectionData(selection, phrase, paragraph)
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            logger.debug(f"Could not parse selection file: {e}")
-            return None
-
-
 class InteractiveDictionaryWatcher:
-    """Main application coordinating file watching and console input"""
+    """Main application coordinating FIFO and console input"""
 
-    def __init__(self, selection_file: Path):
-        self.selection_file = selection_file
-        self.change_queue: Queue[SelectionData] = Queue()
-        self.observer: BaseObserver | None = None
+    def __init__(self, fifo_path: Path):
+        self.fifo_path = fifo_path
+        self.fifo = None
 
         # Current context for phrase/paragraph translation options
         self.current_phrase: str | None = None
@@ -122,113 +58,96 @@ class InteractiveDictionaryWatcher:
         """Start the interactive watcher"""
         display_greeting()
 
-        # Start file watcher
-        self._start_file_watcher()
-
         try:
             self._main_loop()
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")
         finally:
-            self._stop_file_watcher()
+            self._cleanup()
             self.history.save_session()
 
-    def _start_file_watcher(self):
-        """Start watchdog observer for file monitoring"""
-        event_handler = SelectionFileHandler(
-            self.selection_file, self.change_queue
-        )
-        self.observer = Observer()
-        self.observer.schedule(
-            event_handler, str(self.selection_file.parent), recursive=False
-        )
-        self.observer.start()
-        logger.debug("File watcher started")
+    def _open_fifo(self):
+        """Create and open FIFO in non-blocking mode"""
+        # Create FIFO if it doesn't exist
+        if not self.fifo_path.exists():
+            os.mkfifo(self.fifo_path)
+            logger.info(f"Created FIFO at {self.fifo_path}")
 
-    def _stop_file_watcher(self):
-        """Stop watchdog observer"""
-        if self.observer:
-            self.observer.stop()
-            self.observer.join()
-            logger.debug("File watcher stopped")
+        # Open in non-blocking mode so we can select() on it
+        fd = os.open(self.fifo_path, os.O_RDONLY | os.O_NONBLOCK)
+        return os.fdopen(fd, "r")
+
+    def _cleanup(self):
+        """Cleanup FIFO resources"""
+        if self.fifo:
+            try:
+                self.fifo.close()
+            except Exception as e:
+                logger.debug(f"Error closing FIFO: {e}")
 
     def _main_loop(self):
-        """Main event loop: check for file changes and process console input"""
+        """Simple event loop: select on both stdin and FIFO"""
+        self.fifo = self._open_fifo()
         print_prompt = True
 
         while True:
-            # Check for pending file changes
-            if self._check_and_process_file_changes():
-                # Something was processed, print prompt again
-                print_prompt = True
-
-            # Display prompt only when needed
+            # Display prompt when needed
             if print_prompt:
-                has_context = bool(
-                    self.current_phrase or self.current_paragraph
-                )
+                has_context = bool(self.current_phrase or self.current_paragraph)
                 display_prompt(has_context)
                 print_prompt = False
 
-            # Non-blocking input: wait for input with timeout to check file changes
-            user_input = self._get_input_with_timeout(timeout=0.5)
-
-            if user_input is None:
-                # Timeout, no input - check for file changes and loop
-                continue
-
-            # Got input, will need to print prompt again after processing
-            print_prompt = True
-
-            if user_input == "":
-                # Empty input, just continue
-                continue
-
-            # Check for exit command
-            if user_input.lower() in ("q", "quit", "exit"):
-                print("\n👋 Goodbye!")
-                break
-
-            # Process user input
-            self._process_user_input(user_input)
-
-    def _get_input_with_timeout(self, timeout: float) -> str | None:
-        """Get user input with a timeout, returns None if timeout"""
-        # Check if input is available (Unix only)
-        if sys.platform != "win32":
-            ready, _, _ = select.select([sys.stdin], [], [], timeout)
-            if ready:
-                try:
-                    return input().strip()
-                except EOFError:
-                    return "exit"
-            return None
-        else:
-            # Windows: fallback to blocking input
+            # Wait for input from either stdin or FIFO
             try:
-                return input().strip()
-            except EOFError:
-                return "exit"
+                ready, _, _ = select.select([sys.stdin, self.fifo], [], [], 1.0)
+            except select.error:
+                # Handle interrupted system call
+                continue
 
-    def _check_and_process_file_changes(self) -> bool:
-        """Check queue for pending file changes and process them
+            # Check FIFO for Vim selections
+            if self.fifo in ready:
+                try:
+                    line = self.fifo.readline().strip()
+                    if line:
+                        data = json.loads(line)
+                        selection_data = SelectionData(
+                            selection=data.get("selection", ""),
+                            phrase=data.get("phrase", ""),
+                            paragraph=data.get("paragraph", ""),
+                        )
+                        self._process_selection(selection_data)
+                        print_prompt = True
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON from FIFO: {e}")
+                except Exception as e:
+                    logger.error(f"Error reading from FIFO: {e}")
 
-        Returns:
-            bool: True if any changes were processed
-        """
-        try:
-            # Non-blocking check
-            processed = 0
-            while not self.change_queue.empty():
-                selection_data = self.change_queue.get_nowait()
-                self._process_selection(selection_data)
-                processed += 1
-            return processed > 0
-        except Empty:
-            return False
+            # Check stdin for console input
+            if sys.stdin in ready:
+                try:
+                    user_input = input().strip()
+                    print_prompt = True
+
+                    if user_input == "":
+                        continue
+
+                    # Check for exit command
+                    if user_input.lower() in ("q", "quit", "exit"):
+                        print("\n👋 Goodbye!")
+                        break
+
+                    # Process user input
+                    self._process_user_input(user_input)
+
+                except EOFError:
+                    print("\n👋 Goodbye!")
+                    break
 
     def _process_selection(self, data: SelectionData):
-        """Process selection from file change"""
+        """Process selection from FIFO"""
+        if not data.selection:
+            return
+
         logger.debug(f"Processing selection: {data.selection}")
 
         # Save context for options 1/2
@@ -275,24 +194,9 @@ class InteractiveDictionaryWatcher:
 
 def main():
     """Entry point for the interactive dictionary watcher"""
-    # Determine selection file path
-    # Use path relative to the script or from environment/config
-    selection_file = (
-        Path(__file__).parent.parent.parent.parent / "tmp" / "selection.json"
-    )
+    fifo_path = Path(FIFO_PATH)
 
-    if not selection_file.parent.exists():
-        print(f"Error: Directory {selection_file.parent} does not exist")
-        sys.exit(1)
-
-    # Create empty file if it doesn't exist
-    if not selection_file.exists():
-        selection_file.write_text(
-            '{"selection": "", "phrase": "", "paragraph": ""}'
-        )
-        logger.info(f"Created selection file: {selection_file}")
-
-    watcher = InteractiveDictionaryWatcher(selection_file)
+    watcher = InteractiveDictionaryWatcher(fifo_path)
     watcher.start()
 
 

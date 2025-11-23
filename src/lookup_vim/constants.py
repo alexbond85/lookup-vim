@@ -17,3 +17,6 @@ BASE_URL = "https://dictionnaire.lerobert.com/definition"
 # Default settings
 DEFAULT_TIMEOUT = 10
 DEFAULT_JSON_INDENT = 2
+
+# FIFO path for Vim communication
+FIFO_PATH = "/tmp/robert-dict.fifo"

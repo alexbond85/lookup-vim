@@ -233,16 +233,9 @@ function! s:LookupWord(...)
         \ 'paragraph': paragraph
         \ }
     
-    " Write to file and execute lookup
-    let tmp_dir = exists('$TMP_VIM') ? $TMP_VIM : expand('<sfile>:p:h:h') . '/tmp'
-    let word_file = tmp_dir . '/selection.json'
-    " Format JSON with 4-space indentation and preserve French accents
+    " Write JSON to FIFO (single line, backgrounded)
     let json_str = json_encode(data)
-    let formatted = system('python3 -c "import sys, json; print(json.dumps(json.loads(sys.stdin.read()), indent=4, ensure_ascii=False))"', json_str)
-    call writefile(split(formatted, '\n'), word_file)
-    
-    let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
-    silent! call system(script_path)
+    call system('echo ' . shellescape(json_str) . ' >> /tmp/robert-dict.fifo &')
     
     " Highlight the looked-up word
     call s:HighlightText(word)
@@ -293,16 +286,9 @@ function! s:LookupVisualSelection()
         \ 'paragraph': paragraph
         \ }
     
-    " Write to file and execute lookup
-    let tmp_dir = exists('$TMP_VIM') ? $TMP_VIM : expand('<sfile>:p:h:h') . '/tmp'
-    let word_file = tmp_dir . '/selection.json'
-    " Format JSON with 4-space indentation and preserve French accents
+    " Write JSON to FIFO (single line, backgrounded)
     let json_str = json_encode(data)
-    let formatted = system('python3 -c "import sys, json; print(json.dumps(json.loads(sys.stdin.read()), indent=4, ensure_ascii=False))"', json_str)
-    call writefile(split(formatted, '\n'), word_file)
-    
-    let script_path = expand('<sfile>:p:h:h') . '/scripts/dict_watcher.py'
-    silent! call system(script_path)
+    call system('echo ' . shellescape(json_str) . ' >> /tmp/robert-dict.fifo &')
     
     " Highlight the looked-up phrase
     call s:HighlightText(text)

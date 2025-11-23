@@ -14,7 +14,6 @@ dependencies = [
     "openai>=2.8.0",
     "python-dotenv>=1.2.1",
     "rich>=13.0.0",
-    "watchdog>=3.0.0",
 ]
 
 [project.optional-dependencies]
