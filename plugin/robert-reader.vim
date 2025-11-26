@@ -18,12 +18,14 @@
 "   :ReaderTheme <name>  - Change theme (sepia/ocean/forest/twilight/rose/nord/light)
 "   :ReaderFocus         - Toggle focus mode
 "   :ReaderCenter        - Toggle subtle left margin
+"   :ReaderEnableAll     - Enable everything: Reader Mode + Center + Cached words
 "
 " Keybindings:
 "   <leader>rr - Toggle reading mode
 "   <leader>rt - Cycle through themes
 "   <leader>rf - Toggle focus mode
 "   <leader>rc - Toggle subtle margin
+"   <leader>ra - Enable ALL features (recommended!)
 "
 " ============================================================================
 
@@ -511,6 +513,29 @@ function! s:DisableCentering()
 endfunction
 
 " ============================================================================
+" All-in-One Command
+" ============================================================================
+
+function! RobertReaderEnableAll()
+    " Enable Reader Mode
+    if !g:robert_reader_enabled
+        call s:EnableReaderMode()
+    endif
+    
+    " Enable Center
+    if !g:robert_reader_centered
+        call s:EnableCentering()
+    endif
+    
+    " Enable Cached word highlighting (if plugin is available)
+    if exists(':ReaderShowCached')
+        execute 'ReaderShowCached'
+    endif
+    
+    echo '📖 Full Reading Mode: ON [' . g:robert_reader_theme . ' + center + cached words]'
+endfunction
+
+" ============================================================================
 " Commands
 " ============================================================================
 
@@ -519,6 +544,7 @@ command! ReaderFocus call RobertReaderToggleFocus()
 command! ReaderCenter call RobertReaderToggleCenter()
 command! ReaderThemeCycle call RobertReaderCycleTheme()
 command! -nargs=1 -complete=customlist,s:CompleteThemes ReaderTheme call RobertReaderSetTheme(<q-args>)
+command! ReaderEnableAll call RobertReaderEnableAll()
 
 function! s:CompleteThemes(ArgLead, CmdLine, CursorPos)
     return filter(copy(s:available_themes), 'v:val =~ "^" . a:ArgLead')
@@ -532,6 +558,7 @@ nnoremap <leader>rr :ReaderMode<CR>
 nnoremap <leader>rt :ReaderThemeCycle<CR>
 nnoremap <leader>rf :ReaderFocus<CR>
 nnoremap <leader>rc :ReaderCenter<CR>
+nnoremap <leader>ra :ReaderEnableAll<CR>
 
 " ============================================================================
 " Initialize

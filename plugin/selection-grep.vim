@@ -6,9 +6,15 @@
 " Highlighting Setup
 " ============================================================================
 
-" Define highlight group for looked-up words/phrases
-" Link to CursorLine to match theme's hover color
-highlight default link LookupHighlight CursorLine
+" Define RobertCached highlight style (shared with robert-cache-highlighter.vim)
+" This ensures consistent styling even if only one plugin is loaded
+if !hlexists('RobertCached')
+    " Subtle underline style - green tint
+    highlight RobertCached gui=underline guisp=#6A9955 cterm=underline ctermfg=108
+endif
+
+" Use RobertCached for all lookups (unified appearance)
+highlight default link LookupHighlight RobertCached
 
 " Store match IDs per buffer to keep highlights persistent
 if !exists('g:lookup_highlights')
@@ -41,10 +47,21 @@ function! s:HighlightText(text)
     call s:InitBufferHighlights()
     let bufnr = bufnr('%')
     
-    " Escape special regex characters for very nomagic mode
-    " In \V mode, only backslash is special, so escape backslash and forward slash
-    let escaped = escape(a:text, '\/&~')
-    let pattern = '\V' . escaped
+    " Clean the text (remove trailing punctuation)
+    let clean_text = substitute(a:text, '[,;:.!?]\+$', '', '')
+    
+    if clean_text == ''
+        return
+    endif
+    
+    " Create pattern - same logic as robert-cache-highlighter (with case-insensitive)
+    if clean_text !~ '\s' && clean_text !~ "['/()]"
+        " Single word - use word boundaries with case-insensitive flag
+        let pattern = '\c\<' . escape(clean_text, '\.*^$[]~&') . '\>'
+    else
+        " Multi-word phrase - use very nomagic mode with case-insensitive flag
+        let pattern = '\c\V' . escape(clean_text, '\')
+    endif
     
     " Store the pattern for this buffer
     call add(g:lookup_patterns[bufnr], a:text)
@@ -52,7 +69,8 @@ function! s:HighlightText(text)
     " Add the match and store the ID (only if highlights are visible)
     if g:lookup_highlights_visible
         try
-            let match_id = matchadd('LookupHighlight', pattern, 10)
+            " Use RobertCached style for unified appearance (priority 10 to be visible)
+            let match_id = matchadd('RobertCached', pattern, 10)
             call add(g:lookup_highlights[bufnr], match_id)
             " Silently highlight without triggering press-enter prompt
         catch /^Vim\%((\a\+)\)\=:E/
@@ -99,10 +117,20 @@ function! s:ShowHighlights()
             if current_buf == bufnr
                 " We're in the right buffer, add highlights
                 for text in g:lookup_patterns[bufnr]
-                    let escaped = escape(text, '\/&~')
-                    let pattern = '\V' . escaped
+                    " Clean and create pattern (same as HighlightText)
+                    let clean_text = substitute(text, '[,;:.!?]\+$', '', '')
+                    if clean_text == ''
+                        continue
+                    endif
+                    
+                    if clean_text !~ '\s' && clean_text !~ "['/()]"
+                        let pattern = '\c\<' . escape(clean_text, '\.*^$[]~&') . '\>'
+                    else
+                        let pattern = '\c\V' . escape(clean_text, '\')
+                    endif
+                    
                     try
-                        let match_id = matchadd('LookupHighlight', pattern, 10)
+                        let match_id = matchadd('RobertCached', pattern, 10)
                         call add(g:lookup_highlights[bufnr], match_id)
                     catch
                         " Silently skip if pattern fails
@@ -235,6 +263,11 @@ function! s:LookupWord(...)
     
     " Highlight the looked-up word
     call s:HighlightText(word)
+    
+    " Add to cache highlighter session words (if available)
+    if exists('*RobertAddSessionWord')
+        call RobertAddSessionWord(word)
+    endif
 endfunction
 
 function! s:GetWord(args)
@@ -288,6 +321,11 @@ function! s:LookupVisualSelection()
     
     " Highlight the looked-up phrase
     call s:HighlightText(text)
+    
+    " Add to cache highlighter session words (if available)
+    if exists('*RobertAddSessionWord')
+        call RobertAddSessionWord(text)
+    endif
 endfunction
 
 " ============================================================================
