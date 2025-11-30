@@ -78,14 +78,14 @@ class LookupDataLayer:
         """Lookup single word with dictionary, fallback to translation"""
         try:
             result = self.dictionary_service.lookup_word(word)
-            
+
             # Check if result is meaningful (has definitions or is a conjugation)
             if isinstance(result, WordResult) and not result.definitions:
                 logger.debug(
                     f"Dictionary returned empty result, falling back to translation: {word}"
                 )
                 return self._lookup_phrase(word, phrase, selection_data)
-            
+
             # Try to cache, but don't fail if caching fails
             try:
                 self.cache.set(

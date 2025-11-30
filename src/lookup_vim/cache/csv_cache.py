@@ -48,7 +48,9 @@ class CSVCache(CacheBase):
             for key, value in self._cache.items():
                 context_data = self._contexts.get(key)
                 context_json = (
-                    json.dumps(asdict(context_data), ensure_ascii=False) if context_data else ""
+                    json.dumps(asdict(context_data), ensure_ascii=False)
+                    if context_data
+                    else ""
                 )
                 writer.writerow(
                     {

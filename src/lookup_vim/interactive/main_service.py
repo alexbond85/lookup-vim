@@ -44,29 +44,27 @@ class ConversationBuffer:
         self.last_result = result
 
         # Add system context and initial result
-        self.messages.append({
-            "role": "system",
-            "content": f"Aide à la lecture en {self.source_lang} pour locuteur {self.target_lang}. Parle {self.source_lang}/{self.target_lang} uniquement. Apprenant avancé. Réponses brèves et ciblées."
-        })
-        self.messages.append({
-            "role": "assistant",
-            "content": f"Query: {query}\nResult: {result}"
-        })
+        self.messages.append(
+            {
+                "role": "system",
+                "content": f"Aide à la lecture en {self.source_lang} pour locuteur {self.target_lang}. Parle {self.source_lang}/{self.target_lang} uniquement. Apprenant avancé. Réponses brèves et ciblées.",
+            }
+        )
+        self.messages.append(
+            {
+                "role": "assistant",
+                "content": f"Query: {query}\nResult: {result}",
+            }
+        )
 
     def add_follow_up(self, question: str) -> list[dict[str, str]]:
         """Add a follow-up question and return full conversation history"""
-        self.messages.append({
-            "role": "user",
-            "content": question
-        })
+        self.messages.append({"role": "user", "content": question})
         return self.messages
 
     def add_response(self, response: str):
         """Add LLM response to conversation"""
-        self.messages.append({
-            "role": "assistant",
-            "content": response
-        })
+        self.messages.append({"role": "assistant", "content": response})
 
     def has_conversation(self) -> bool:
         """Check if there's an active conversation"""
@@ -82,8 +80,13 @@ class ConversationBuffer:
 class MainLookupService:
     """Main service coordinating FIFO reading and data layer"""
 
-    def __init__(self, fifo_path: Path, cache_type: str = "memory", 
-                 source_lang: str = "French", target_lang: str = "Russian"):
+    def __init__(
+        self,
+        fifo_path: Path,
+        cache_type: str = "memory",
+        source_lang: str = "French",
+        target_lang: str = "Russian",
+    ):
         self.fifo_path = fifo_path
         self.fifo = None
         self.source_lang = source_lang
@@ -109,13 +112,15 @@ class MainLookupService:
             system_prompt=f"Aide à la lecture en {source_lang} pour locuteur {target_lang}. Parle {source_lang}/{target_lang} uniquement. Apprenant avancé. Traduction en {target_lang}, explications brèves et ciblées.",
         )
         translator = ChatGPTTranslator(
-            llm=translation_llm, source_lang=source_lang, target_lang=target_lang
+            llm=translation_llm,
+            source_lang=source_lang,
+            target_lang=target_lang,
         )
-        
+
         # Separate LLM for follow-up conversations (no structured output)
         self.conversation_llm = StructuredLLM(
             model="gpt-5.1",
-            system_prompt=""  # Will be set per conversation
+            system_prompt="",  # Will be set per conversation
         )
         translation_service = TranslationService(provider=translator)
 
@@ -129,9 +134,7 @@ class MainLookupService:
 
     def start(self):
         """Start the service and listen on FIFO"""
-        console.print(
-            "[blue]Robert Lookup Service[/blue]\n"
-        )
+        console.print("[blue]Robert Lookup Service[/blue]\n")
 
         try:
             self._main_loop()
@@ -161,9 +164,7 @@ class MainLookupService:
     def _main_loop(self):
         """Main event loop: read from FIFO and console input"""
         self.fifo = self._open_fifo()
-        console.print(
-            "[dim]Ready for input from Vim or console[/dim]\n"
-        )
+        console.print("[dim]Ready for input from Vim or console[/dim]\n")
         print_prompt = True
 
         while True:
@@ -174,7 +175,9 @@ class MainLookupService:
 
             # Wait for input from either stdin or FIFO
             try:
-                ready, _, _ = select.select([sys.stdin, self.fifo], [], [], 1.0)
+                ready, _, _ = select.select(
+                    [sys.stdin, self.fifo], [], [], 1.0
+                )
             except OSError:
                 # Handle interrupted system call
                 continue
@@ -194,11 +197,13 @@ class MainLookupService:
                         )
                         # Save context for options 1/2
                         self.current_phrase = selection_data.phrase or None
-                        self.current_paragraph = selection_data.paragraph or None
-                        
+                        self.current_paragraph = (
+                            selection_data.paragraph or None
+                        )
+
                         # Reset conversation on new Vim selection
                         self.conversation.reset()
-                        
+
                         self._process_selection(selection_data)
                         print_prompt = True
                 except json.JSONDecodeError as e:
@@ -231,7 +236,7 @@ class MainLookupService:
         """Display input prompt with available options"""
         has_context = bool(self.current_phrase or self.current_paragraph)
         has_conversation = self.conversation.has_conversation()
-        
+
         if has_context or has_conversation:
             options = []
             if self.current_phrase:
@@ -241,12 +246,10 @@ class MainLookupService:
             if has_conversation:
                 options.append("[3] Follow-up question")
             options.append("[q/exit] Quit")
-            
+
             console.print(f"[dim]Options: {' | '.join(options)}[/dim]")
         else:
-            console.print(
-                "[dim]Enter word/phrase or [q/exit] to quit[/dim]"
-            )
+            console.print("[dim]Enter word/phrase or [q/exit] to quit[/dim]")
         console.print("[blue]>[/blue] ", end="")
 
     def _process_console_input(self, user_input: str):
@@ -256,14 +259,11 @@ class MainLookupService:
             # Translate phrase - reset conversation
             self.conversation.reset()
             selection_data = SelectionData(
-                selection=self.current_phrase,
-                phrase="",
-                paragraph="",
-                file=""
+                selection=self.current_phrase, phrase="", paragraph="", file=""
             )
             self._process_selection(selection_data)
             return
-        
+
         if user_input == "2" and self.current_paragraph:
             # Translate paragraph - reset conversation
             self.conversation.reset()
@@ -271,11 +271,11 @@ class MainLookupService:
                 selection=self.current_paragraph,
                 phrase="",
                 paragraph="",
-                file=""
+                file="",
             )
             self._process_selection(selection_data)
             return
-        
+
         if user_input == "3" and self.conversation.has_conversation():
             # Follow-up question - keep asking until we get the question
             console.print("[dim]Follow-up question:[/dim]")
@@ -287,49 +287,46 @@ class MainLookupService:
             except EOFError:
                 pass
             return
-        
+
         if user_input in ("1", "2", "3"):
             # Invalid command (no context available)
             display_error("Option not available in current context")
             return
-        
+
         # Regular word/phrase lookup - treat multi-line input as single query
         # This resets the conversation as it's a new query
         self.conversation.reset()
-        
+
         # Create selection data and process (keeping newlines intact)
         selection_data = SelectionData(
-            selection=user_input,
-            phrase="",
-            paragraph="",
-            file=""
+            selection=user_input, phrase="", paragraph="", file=""
         )
         self._process_selection(selection_data)
 
     def _handle_follow_up(self, question: str):
         """Handle follow-up question about the last result"""
         console.print()
-        
+
         try:
             # Get conversation history with the new question
             messages = self.conversation.add_follow_up(question)
-            
+
             # Call LLM with conversation history
             response = self.conversation_llm.client.chat.completions.create(
                 model=self.conversation_llm.model,
                 messages=messages,
                 temperature=0.7,
             )
-            
+
             answer = response.choices[0].message.content
-            
+
             # Add response to conversation
             self.conversation.add_response(answer)
-            
+
             # Display the answer
             console.print("[blue]Answer:[/blue]\n")
             console.print(f"{answer}\n")
-            
+
         except Exception as e:
             logger.error(f"Error in follow-up conversation: {e}")
             display_error(f"Failed to get response: {e}")
@@ -347,19 +344,25 @@ class MainLookupService:
             return
 
         display_result(result)
-        
+
         # Start conversation with this result for potential follow-ups
         result_text = self._format_result_for_conversation(result)
         self.conversation.start_conversation(data.selection, result_text)
-    
+
     def _format_result_for_conversation(self, result) -> str:
         """Format result as text for conversation context"""
-        from lookup_vim.models import WordResult, TranslationResult, ConjugationResult
-        
+        from lookup_vim.models import (
+            ConjugationResult,
+            TranslationResult,
+            WordResult,
+        )
+
         if isinstance(result, TranslationResult):
             return f"Translation: {result.translation}\nExplanations: {result.explanations}"
         elif isinstance(result, WordResult):
-            definitions = "\n".join([f"- {d.definition}" for d in result.definitions[:3]])
+            definitions = "\n".join(
+                [f"- {d.definition}" for d in result.definitions[:3]]
+            )
             return f"Word: {result.word}\nDefinitions:\n{definitions}"
         elif isinstance(result, ConjugationResult):
             return f"Conjugation of: {result.redirected_to}\n{result.message}"
