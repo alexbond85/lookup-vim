@@ -14,6 +14,19 @@ M.ns_id = vim.api.nvim_create_namespace("text_selections")
 M.highlight_mode = false
 M.original_visual_hl = nil  -- Store original Visual highlight
 
+function M.setup_word_selection()
+	-- Map 'v' to automatically select whole word in normal mode
+	vim.keymap.set('n', 'v', 'viw', { 
+		buffer = true, 
+		desc = "Visual select inner word (auto-select mode)" 
+	})
+end
+
+function M.teardown_word_selection()
+	-- Restore normal 'v' behavior
+	pcall(vim.keymap.del, 'n', 'v', { buffer = true })
+end
+
 function M.setup(opts)
 	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 	
@@ -45,6 +58,9 @@ function M.toggle_highlight_mode()
 		-- Create modified visual highlight with underline
 		local modified_hl = vim.tbl_deep_extend("force", M.original_visual_hl, {underline = true})
 		vim.api.nvim_set_hl(0, "Visual", modified_hl)
+		
+		-- Enable automatic word selection in visual mode
+		M.setup_word_selection()
 	else
 		vim.notify("Text highlight mode: OFF", vim.log.levels.INFO)
 		-- Clear all highlights
@@ -54,6 +70,9 @@ function M.toggle_highlight_mode()
 		if M.original_visual_hl then
 			vim.api.nvim_set_hl(0, "Visual", M.original_visual_hl)
 		end
+		
+		-- Disable automatic word selection
+		M.teardown_word_selection()
 	end
 end
 
