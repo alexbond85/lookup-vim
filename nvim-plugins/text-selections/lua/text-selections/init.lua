@@ -1,7 +1,12 @@
 local M = {}
 
+-- Import modules
+local context = require('text-selections.context')
+local fifo = require('text-selections.fifo')
+
 M.config = {
 	selections_file = vim.fn.expand("~/projects/alexbond/robert-online/books/notes/selections.txt"),
+	fifo_path = "/tmp/robert-dict.fifo",
 }
 
 -- Storage for highlight namespace and mode state
@@ -79,6 +84,15 @@ function M.save_selection()
 
 	-- Highlight the saved selection
 	M.highlight_text(selected_text)
+	
+	-- Send to lookup service
+	local data = {
+		selection = selected_text,
+		phrase = context.get_current_sentence(),
+		paragraph = context.get_current_paragraph(),
+		file = vim.api.nvim_buf_get_name(0),
+	}
+	fifo.send(M.config, data)
 end
 
 function M.highlight_text(text)
