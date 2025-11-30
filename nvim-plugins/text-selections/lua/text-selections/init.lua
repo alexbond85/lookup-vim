@@ -5,7 +5,7 @@ local context = require('text-selections.context')
 local fifo = require('text-selections.fifo')
 
 M.config = {
-	selections_file = vim.fn.expand("~/projects/alexbond/robert-online/books/notes/selections.txt"),
+	selections_file = vim.fn.expand("~/projects/alexbond/robert-online/history/selections.jsonl"),
 	fifo_path = "/tmp/robert-dict.fifo",
 }
 
@@ -90,18 +90,10 @@ function M.save_selection()
 		return
 	end
 
-	-- Append to file
-	local file = io.open(M.config.selections_file, "a")
-	if file then
-		file:write(selected_text .. "\n")
-		file:close()
-		vim.notify("Selection saved!", vim.log.levels.INFO)
-	else
-		vim.notify("Failed to open selections file", vim.log.levels.ERROR)
-		return
-	end
+	-- Note: Python service handles saving to CSV file
+	vim.notify("Selection sent to lookup!", vim.log.levels.INFO)
 
-	-- Highlight the saved selection
+	-- Highlight the selection immediately (will be persisted after lookup)
 	M.highlight_text(selected_text)
 	
 	-- Send to lookup service
@@ -147,16 +139,27 @@ function M.load_and_highlight()
 		return
 	end
 
-	-- Read all selections
+	-- Read JSONL file and extract selections
 	local file = io.open(M.config.selections_file, "r")
 	if not file then
 		return
 	end
 
 	local selections = {}
+	local seen = {}  -- Track unique selections
+	
+	-- Parse JSONL: one JSON object per line
 	for line in file:lines() do
 		if line ~= "" then
-			table.insert(selections, line)
+			-- Decode JSON line
+			local ok, record = pcall(vim.json.decode, line)
+			if ok and record.selection then
+				local selection = record.selection
+				if selection and selection ~= "" and not seen[selection] then
+					table.insert(selections, selection)
+					seen[selection] = true
+				end
+			end
 		end
 	end
 	file:close()
@@ -164,7 +167,7 @@ function M.load_and_highlight()
 	-- Clear existing highlights
 	vim.api.nvim_buf_clear_namespace(0, M.ns_id, 0, -1)
 
-	-- Highlight all selections
+	-- Highlight all unique selections
 	for _, text in ipairs(selections) do
 		M.highlight_text(text)
 	end

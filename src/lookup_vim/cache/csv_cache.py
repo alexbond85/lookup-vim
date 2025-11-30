@@ -11,11 +11,13 @@ from lookup_vim.models import SelectionData
 class CSVCache(CacheBase):
     """CSV-based persistent cache implementation with context tracking"""
 
-    def __init__(self, cache_dir: Path | None = None):
-        if cache_dir is None:
-            cache_dir = Path.home() / ".cache" / "robert-online"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_file = cache_dir / "cache.csv"
+    def __init__(self, cache_file: Path | None = None):
+        if cache_file is None:
+            # Default to history/selections.csv in project
+            cache_file = Path.home() / "projects/alexbond/robert-online/history/selections.csv"
+        self.cache_file = cache_file
+        # Ensure directory exists
+        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, Any] = {}
         self._contexts: dict[str, SelectionData | None] = {}
         self._load()

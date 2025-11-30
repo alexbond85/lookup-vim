@@ -99,9 +99,6 @@ class MainLookupService:
         # Conversation buffer for follow-up questions
         self.conversation = ConversationBuffer(source_lang, target_lang)
 
-        # Path to selections file (for saving translations alongside highlights)
-        self.selections_file = Path.home() / "projects/alexbond/robert-online/books/notes/selections.txt"
-
         # Initialize cache
         cache = create_cache(cache_type)
 
@@ -348,22 +345,9 @@ class MainLookupService:
 
         display_result(result)
 
-        # Optionally append translation to selections file
-        from lookup_vim.models import TranslationResult
-        if isinstance(result, TranslationResult):
-            self._append_translation(data.selection, result.translation)
-
         # Start conversation with this result for potential follow-ups
         result_text = self._format_result_for_conversation(result)
         self.conversation.start_conversation(data.selection, result_text)
-
-    def _append_translation(self, text: str, translation: str):
-        """Optionally append translation to selections file"""
-        try:
-            with open(self.selections_file, 'a') as f:
-                f.write(f" | {translation}\n")
-        except Exception as e:
-            logger.debug(f"Could not append translation: {e}")
 
     def _format_result_for_conversation(self, result) -> str:
         """Format result as text for conversation context"""
@@ -389,7 +373,7 @@ class MainLookupService:
 def main():
     """Entry point for the main lookup service"""
     fifo_path = Path(FIFO_PATH)
-    cache_type = os.environ.get("CACHE_TYPE", "csv")
+    cache_type = os.environ.get("CACHE_TYPE", "jsonl")
 
     service = MainLookupService(fifo_path, cache_type)
     service.start()

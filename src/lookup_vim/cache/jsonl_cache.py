@@ -1,0 +1,93 @@
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from lookup_vim.cache.base import CacheBase
+from lookup_vim.models import SelectionData
+
+
+class JSONLCache(CacheBase):
+    """JSONL-based persistent cache implementation with rich metadata"""
+
+    def __init__(self, cache_file: Path | None = None):
+        if cache_file is None:
+            # Default to history/selections.jsonl in project
+            cache_file = Path.home() / "projects/alexbond/robert-online/history/selections.jsonl"
+        self.cache_file = cache_file
+        # Ensure directory exists
+        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        self._cache: dict[str, Any] = {}
+        self._load()
+
+    def _load(self) -> None:
+        """Load cache from JSONL file"""
+        if not self.cache_file.exists():
+            return
+
+        with open(self.cache_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    key = record.get("key")
+                    if key:
+                        self._cache[key] = record
+                except json.JSONDecodeError:
+                    # Skip malformed lines
+                    continue
+
+    def _append(self, record: dict) -> None:
+        """Append a record to the JSONL file"""
+        with open(self.cache_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def get(self, key: str) -> Any | None:
+        record = self._cache.get(key)
+        if record:
+            return record.get("result")
+        return None
+
+    def set(
+        self, key: str, value: Any, context: SelectionData | None = None
+    ) -> None:
+        # Extract metadata
+        timestamp = datetime.now().isoformat()
+        book_name = ""
+        line_number = None
+        
+        if context and context.file:
+            # Extract book name from file path
+            book_path = Path(context.file)
+            if "books" in book_path.parts:
+                book_name = book_path.stem
+            else:
+                book_name = book_path.name
+        
+        # Create record with rich metadata
+        record = {
+            "key": key,
+            "selection": context.selection if context else "",
+            "timestamp": timestamp,
+            "book": book_name,
+            "line_number": line_number,  # TODO: Add line tracking from Vim
+            "context": {
+                "selection": context.selection if context else "",
+                "phrase": context.phrase if context else "",
+                "paragraph": context.paragraph if context else "",
+                "file": context.file if context else "",
+            } if context else None,
+            "result": value,
+        }
+        
+        # Update in-memory cache
+        self._cache[key] = record
+        
+        # Append to file
+        self._append(record)
+
+    def has(self, key: str) -> bool:
+        return key in self._cache
+
