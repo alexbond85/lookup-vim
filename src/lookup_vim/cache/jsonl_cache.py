@@ -13,7 +13,10 @@ class JSONLCache(CacheBase):
     def __init__(self, cache_file: Path | None = None):
         if cache_file is None:
             # Default to history/selections.jsonl in project
-            cache_file = Path.home() / "projects/alexbond/robert-online/history/selections.jsonl"
+            cache_file = (
+                Path.home()
+                / "projects/alexbond/robert-online/history/selections.jsonl"
+            )
         self.cache_file = cache_file
         # Ensure directory exists
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -57,7 +60,7 @@ class JSONLCache(CacheBase):
         timestamp = datetime.now().isoformat()
         book_name = ""
         line_number = None
-        
+
         if context and context.file:
             # Extract book name from file path
             book_path = Path(context.file)
@@ -65,7 +68,7 @@ class JSONLCache(CacheBase):
                 book_name = book_path.stem
             else:
                 book_name = book_path.name
-        
+
         # Create record with rich metadata
         record = {
             "key": key,
@@ -78,16 +81,17 @@ class JSONLCache(CacheBase):
                 "phrase": context.phrase if context else "",
                 "paragraph": context.paragraph if context else "",
                 "file": context.file if context else "",
-            } if context else None,
+            }
+            if context
+            else None,
             "result": value,
         }
-        
+
         # Update in-memory cache
         self._cache[key] = record
-        
+
         # Append to file
         self._append(record)
 
     def has(self, key: str) -> bool:
         return key in self._cache
-

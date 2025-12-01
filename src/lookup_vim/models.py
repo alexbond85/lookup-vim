@@ -1,5 +1,3 @@
-"""Domain models for dictionary data"""
-
 from dataclasses import dataclass, field
 
 
@@ -24,6 +22,7 @@ class WordResult:
     word_combinations: list[str] = field(default_factory=list)
 
 
+# not used yet
 @dataclass
 class ConjugationResult:
     """Result when a word redirects to a conjugation page"""

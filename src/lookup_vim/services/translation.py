@@ -5,7 +5,7 @@ from typing import cast
 from pydantic import BaseModel
 
 from lookup_vim.models import TranslationResult
-from lookup_vim.translators.base import TranslationProvider
+from lookup_vim.translation.translators.translator import Translator
 
 
 class TranslationOutput(BaseModel):
@@ -16,14 +16,14 @@ class TranslationOutput(BaseModel):
 
 
 class TranslationService:
-    """High-level translation service that delegates to a translation provider"""
+    """High-level translation service that delegates to a translator"""
 
-    def __init__(self, provider: TranslationProvider):
+    def __init__(self, provider: Translator):
         """
         Initialize the translation service
 
         Args:
-            provider: Translation provider implementation (e.g., ChatGPTTranslator)
+            provider: Translator instance
         """
         self.provider = provider
 

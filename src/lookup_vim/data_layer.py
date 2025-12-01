@@ -181,14 +181,24 @@ class LookupDataLayer:
         self, data: dict
     ) -> WordResult | ConjugationResult | TranslationResult | None:
         """Convert cached dict back to result object"""
+        # If data is already a result object (from memory cache), return as-is
+        if isinstance(
+            data, (WordResult, ConjugationResult, TranslationResult)
+        ):
+            return data
+
         result_type = data.get("type")
         result_data = data.get("data", {})
 
         if result_type == "WordResult":
             # Convert definition dicts back to Definition objects
-            definitions = [
-                Definition(**d) for d in result_data.get("definitions", [])
-            ]
+            definitions = []
+            for d in result_data.get("definitions", []):
+                # Check if already a Definition object
+                if isinstance(d, Definition):
+                    definitions.append(d)
+                else:
+                    definitions.append(Definition(**d))
             result_data["definitions"] = definitions
             return WordResult(**result_data)
         elif result_type == "ConjugationResult":

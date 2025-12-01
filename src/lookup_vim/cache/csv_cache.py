@@ -14,7 +14,10 @@ class CSVCache(CacheBase):
     def __init__(self, cache_file: Path | None = None):
         if cache_file is None:
             # Default to history/selections.csv in project
-            cache_file = Path.home() / "projects/alexbond/robert-online/history/selections.csv"
+            cache_file = (
+                Path.home()
+                / "projects/alexbond/robert-online/history/selections.csv"
+            )
         self.cache_file = cache_file
         # Ensure directory exists
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)

@@ -17,11 +17,12 @@ from lookup_vim.interactive.display import (
 from lookup_vim.interactive.handler import InputHandler
 from lookup_vim.interactive.history import HistoryLogger
 from lookup_vim.interactive.history_viewer import display_history
-from lookup_vim.scrapers.lerobert import LeRobertScraper
 from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.translation import TranslationService
-from lookup_vim.translators.chatgpt import ChatGPTTranslator
-from lookup_vim.translators.llm import StructuredLLM
+from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
+from lookup_vim.translation.translators.openai_llm import OpenAILLM
+from lookup_vim.translation.translators.prompts import TranslationPrompts
+from lookup_vim.translation.translators.translator import Translator
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -52,13 +53,11 @@ class InteractiveDictionaryWatcher:
         dictionary_service = DictionaryService(scraper)
 
         # Initialize translation with DI: LLM -> Translator -> Service
-        llm = StructuredLLM(
-            model="gpt-5.1",
-            system_prompt="Tu es un traducteur du French vers le Russian. Donne des traductions et explications courtes et précises. Sois concis - ajoute des informations supplémentaires seulement si elles aident vraiment à comprendre le mot.",
+        llm = OpenAILLM(model="gpt-5.1")
+        prompts = TranslationPrompts.create(
+            source_lang="French", target_lang="Russian"
         )
-        translator = ChatGPTTranslator(
-            llm=llm, source_lang="French", target_lang="Russian"
-        )
+        translator = Translator(structured_llm=llm, prompts=prompts)
         translation_service = TranslationService(provider=translator)
 
         self.handler = InputHandler(dictionary_service, translation_service)

@@ -17,11 +17,12 @@ from lookup_vim.interactive.display import (
 )
 from lookup_vim.interactive.history import HistoryLogger
 from lookup_vim.models import SelectionData
-from lookup_vim.scrapers.lerobert import LeRobertScraper
 from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.translation import TranslationService
-from lookup_vim.translators.chatgpt import ChatGPTTranslator
-from lookup_vim.translators.llm import StructuredLLM
+from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
+from lookup_vim.translation.translators.openai_llm import OpenAILLM
+from lookup_vim.translation.translators.prompts import TranslationPrompts
+from lookup_vim.translation.translators.translator import Translator
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -107,21 +108,17 @@ class MainLookupService:
         dictionary_service = DictionaryService(scraper)
 
         # LLM for translation
-        translation_llm = StructuredLLM(
-            model="gpt-5.1",
-            system_prompt=f"Aide à la lecture en {source_lang} pour locuteur {target_lang}. Parle {source_lang}/{target_lang} uniquement. Apprenant avancé. Traduction en {target_lang}, explications brèves et ciblées.",
+        translation_llm = OpenAILLM(model="gpt-5.1")
+        prompts = TranslationPrompts.create(
+            source_lang=source_lang, target_lang=target_lang
         )
-        translator = ChatGPTTranslator(
-            llm=translation_llm,
-            source_lang=source_lang,
-            target_lang=target_lang,
+        translator = Translator(
+            structured_llm=translation_llm,
+            prompts=prompts,
         )
 
-        # Separate LLM for follow-up conversations (no structured output)
-        self.conversation_llm = StructuredLLM(
-            model="gpt-5.1",
-            system_prompt="",  # Will be set per conversation
-        )
+        # Separate LLM for follow-up conversations
+        self.conversation_llm = OpenAILLM(model="gpt-5.1")
         translation_service = TranslationService(provider=translator)
 
         # Initialize data layer

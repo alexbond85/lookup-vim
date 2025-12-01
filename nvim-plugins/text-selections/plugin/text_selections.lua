@@ -3,7 +3,7 @@ if vim.g.loaded_text_selections then
 end
 vim.g.loaded_text_selections = true
 
--- Keymap to save selection (only works when highlight mode is ON)
+-- Keymap to save selection in VISUAL mode
 vim.keymap.set("v", ",,", function()
 	local selections = require("text-selections")
 	-- Only save if highlight mode is active
@@ -17,6 +17,20 @@ vim.keymap.set("v", ",,", function()
 		vim.cmd('normal! y')
 	end
 end, { desc = "Save text selection" })
+
+-- Keymap to save word in NORMAL mode
+vim.keymap.set("n", ",,", function()
+	local selections = require("text-selections")
+	-- Only save if highlight mode is active
+	if selections.highlight_mode then
+		-- Yank word under cursor and save it
+		vim.cmd('normal! yiw')
+		selections.save_selection()
+	else
+		-- If mode is off, do nothing (or could show a message)
+		vim.notify("Highlight mode is OFF. Enable with <leader>th", vim.log.levels.WARN)
+	end
+end, { desc = "Save word under cursor" })
 
 -- Keymap to toggle highlight mode
 vim.keymap.set("n", "<leader>th", function()

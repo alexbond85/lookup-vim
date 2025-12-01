@@ -1,5 +1,5 @@
 from lookup_vim.models import ConjugationResult, WordResult
-from lookup_vim.scrapers.lerobert import LeRobertScraper
+from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
 
 
 class DictionaryService:
