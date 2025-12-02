@@ -1,5 +1,5 @@
-"""Interactive dictionary watcher with file monitoring and console input"""
+"""Interactive lookup console"""
 
-from lookup_vim.interactive.watcher import main
+from lookup_vim.interactive.console import main
 
 __all__ = ["main"]

@@ -9,14 +9,13 @@ from pathlib import Path
 
 from lookup_vim.cache import create_cache
 from lookup_vim.constants import FIFO_PATH
-from lookup_vim.data_layer import LookupDataLayer
 from lookup_vim.interactive.display import (
     console,
     display_error,
     display_result,
 )
-from lookup_vim.interactive.history import HistoryLogger
 from lookup_vim.models import SelectionData
+from lookup_vim.services.lookup_service import LookupService
 from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.translation import TranslationService
 from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
@@ -121,13 +120,10 @@ class MainLookupService:
         self.conversation_llm = OpenAILLM(model="gpt-5.1")
         translation_service = TranslationService(provider=translator)
 
-        # Initialize data layer
-        self.data_layer = LookupDataLayer(
+        # Initialize lookup service
+        self.lookup_service = LookupService(
             cache, dictionary_service, translation_service
         )
-
-        # Initialize history logger
-        self.history = HistoryLogger(console)
 
     def start(self):
         """Start the service and listen on FIFO"""
@@ -139,7 +135,6 @@ class MainLookupService:
             print("\n\nService stopped")
         finally:
             self._cleanup()
-            self.history.save_session()
 
     def _open_fifo(self):
         """Create and open FIFO in non-blocking mode"""
@@ -335,7 +330,7 @@ class MainLookupService:
 
         logger.debug(f"Processing selection: {data.selection}")
 
-        result = self.data_layer.lookup(data)
+        result = self.lookup_service.lookup(data)
         if result is None:
             display_error("Failed to lookup or translate")
             return

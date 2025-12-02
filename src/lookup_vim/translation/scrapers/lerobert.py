@@ -103,21 +103,39 @@ class DefinitionParser:
         if not def_section or not isinstance(def_section, Tag):
             return definitions
 
-        def_blocks = def_section.find_all("div", class_="b", recursive=False)
+        # Find all d_dvr blocks (grammatical variants: adverbe, nom, etc.)
+        dvr_blocks = def_section.find_all("div", class_="d_dvr")
 
-        for block in def_blocks:
-            category = self._extract_category(block)
-            def_items = self._find_definition_items(block)
+        for dvr in dvr_blocks:
+            # Get category for this variant (e.g., "adverbe", "nom masculin")
+            category = self._extract_category(dvr)
 
-            for item in def_items:
-                dfn_elem = item.find("span", class_="d_dfn")
+            # Check for direct d_dfn in this dvr block
+            direct_dfn = dvr.find("span", class_="d_dfn", recursive=False)
+            if direct_dfn:
+                definition_text = _clean_text(
+                    direct_dfn.get_text(separator=" ", strip=True)
+                )
+                examples = self._extract_definition_examples(dvr)
+                definitions.append(
+                    Definition(
+                        category=category,
+                        definition=definition_text,
+                        examples=examples,
+                    )
+                )
+
+            # Also check d_dvn sub-blocks for more definitions
+            dvn_blocks = dvr.find_all("div", class_="d_dvn", recursive=False)
+            for dvn in dvn_blocks:
+                dfn_elem = dvn.find("span", class_="d_dfn")
                 if not dfn_elem:
                     continue
 
                 definition_text = _clean_text(
                     dfn_elem.get_text(separator=" ", strip=True)
                 )
-                examples = self._extract_definition_examples(item)
+                examples = self._extract_definition_examples(dvn)
 
                 definitions.append(
                     Definition(
@@ -131,19 +149,12 @@ class DefinitionParser:
 
     def _extract_category(self, block) -> str:
         """Extract word category from definition block"""
-        category_elem = block.find("span", class_="d_cat")
+        category_elem = block.find("span", class_="d_cat", recursive=False)
         return (
             _clean_text(category_elem.get_text(separator=" ", strip=True))
             if category_elem
             else ""
         )
-
-    def _find_definition_items(self, block: Tag) -> list[Tag]:
-        """Find definition items in block"""
-        def_items = block.find_all("div", class_="d_dvn")
-        if not def_items:
-            def_items = block.find_all("div", class_="d_ptma")
-        return list(def_items)
 
     def _extract_definition_examples(self, item: Tag) -> list[str]:
         """Extract examples from a definition item"""

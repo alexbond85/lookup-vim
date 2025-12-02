@@ -1,10 +1,17 @@
 import json
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from lookup_vim.cache.base import CacheBase
-from lookup_vim.models import SelectionData
+from lookup_vim.models import (
+    ConjugationResult,
+    Definition,
+    SelectionData,
+    TranslationResult,
+    WordResult,
+)
 
 
 class JSONLCache(CacheBase):
@@ -47,10 +54,41 @@ class JSONLCache(CacheBase):
         with open(self.cache_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+    def _serialize_result(self, result: Any) -> dict:
+        """Convert result object to JSON-serializable dict"""
+        if isinstance(result, WordResult):
+            return {"_type": "WordResult", **asdict(result)}
+        elif isinstance(result, ConjugationResult):
+            return {"_type": "ConjugationResult", **asdict(result)}
+        elif isinstance(result, TranslationResult):
+            return {"_type": "TranslationResult", **asdict(result)}
+        elif is_dataclass(result):
+            return {"_type": type(result).__name__, **asdict(result)}
+        return result
+
+    def _deserialize_result(self, data: Any) -> Any:
+        """Convert dict back to result object"""
+        if not isinstance(data, dict) or "_type" not in data:
+            return data
+
+        result_type = data.pop("_type")
+        if result_type == "WordResult":
+            # Convert definition dicts back to Definition objects
+            data["definitions"] = [
+                Definition(**d) if isinstance(d, dict) else d
+                for d in data.get("definitions", [])
+            ]
+            return WordResult(**data)
+        elif result_type == "ConjugationResult":
+            return ConjugationResult(**data)
+        elif result_type == "TranslationResult":
+            return TranslationResult(**data)
+        return data
+
     def get(self, key: str) -> Any | None:
         record = self._cache.get(key)
         if record:
-            return record.get("result")
+            return self._deserialize_result(record.get("result"))
         return None
 
     def set(
@@ -84,7 +122,7 @@ class JSONLCache(CacheBase):
             }
             if context
             else None,
-            "result": value,
+            "result": self._serialize_result(value),
         }
 
         # Update in-memory cache
