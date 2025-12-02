@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -11,9 +12,7 @@ class TranslationPrompts:
     system_prompt: str
 
     @classmethod
-    def create(
-        cls, source_lang: str, target_lang: str
-    ) -> TranslationPrompts:
+    def create(cls, source_lang: str, target_lang: str) -> TranslationPrompts:
         """
         Create a TranslationPrompts with a default system prompt
 
@@ -60,4 +59,3 @@ class TranslationPrompts:
                 f"Explique brièvement. Ajoute seulement si utile : "
                 f"nuances, usage, remarques."
             )
-

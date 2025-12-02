@@ -62,9 +62,9 @@ class JSONLCache(CacheBase):
             return {"_type": "ConjugationResult", **asdict(result)}
         elif isinstance(result, TranslationResult):
             return {"_type": "TranslationResult", **asdict(result)}
-        elif is_dataclass(result):
+        elif is_dataclass(result) and not isinstance(result, type):
             return {"_type": type(result).__name__, **asdict(result)}
-        return result
+        return result  # type: ignore[no-any-return]
 
     def _deserialize_result(self, data: Any) -> Any:
         """Convert dict back to result object"""

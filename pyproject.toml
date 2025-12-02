@@ -27,8 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-lookup-watch = "lookup_vim.interactive.watcher:main"
-lookup-history = "lookup_vim.interactive.history_cli:main"
+lookup-repl = "lookup_vim.repl:main"
 
 [build-system]
 requires = ["hatchling"]

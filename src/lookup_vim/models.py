@@ -48,6 +48,7 @@ class TranslationResult:
 @dataclass
 class SelectionData:
     """Data captured from text selection in Vim"""
+
     selection: str = ""
     phrase: str = ""
     paragraph: str = ""

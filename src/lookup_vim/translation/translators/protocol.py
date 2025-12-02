@@ -26,4 +26,3 @@ class StructuredLLM(Protocol):
             Parsed structured output matching the output_model
         """
         ...
-

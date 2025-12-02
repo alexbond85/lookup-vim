@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-from lookup_vim.translation.translators.protocol import StructuredLLM
 from lookup_vim.translation.translators.prompts import TranslationPrompts
+from lookup_vim.translation.translators.protocol import StructuredLLM
 
 
 class Translator:
@@ -45,4 +45,3 @@ class Translator:
             system_prompt=self.prompts.system_prompt,
             output_model=output_model,
         )
-

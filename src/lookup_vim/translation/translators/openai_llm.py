@@ -61,4 +61,3 @@ class OpenAILLM:
             raise ValueError("LLM generation failed: no output from API")
 
         return output
-

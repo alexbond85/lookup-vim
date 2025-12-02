@@ -56,7 +56,9 @@ class LookupHandler(ABC):
         """Should chain stop? Default: stop if result is not None."""
         return result is not None
 
-    def _pass_to_next(self, selection_data: SelectionData) -> LookupResult | None:
+    def _pass_to_next(
+        self, selection_data: SelectionData
+    ) -> LookupResult | None:
         """Pass to next handler"""
         if self._next_handler:
             return self._next_handler.handle(selection_data)
@@ -72,7 +74,7 @@ class CacheHandler(LookupHandler):
         super().__init__()
         self.cache = cache
 
-    def can_handle(self, selection_data: SelectionData) -> bool:
+    def can_handle(self, _selection_data: SelectionData) -> bool:
         return True
 
     def process(self, selection_data: SelectionData) -> LookupResult | None:
@@ -98,7 +100,9 @@ class DictionaryHandler(LookupHandler):
 
     name = "dictionary"
 
-    def __init__(self, dictionary_service: DictionaryService, cache: CacheBase):
+    def __init__(
+        self, dictionary_service: DictionaryService, cache: CacheBase
+    ):
         super().__init__()
         self.dictionary_service = dictionary_service
         self.cache = cache
@@ -134,12 +138,14 @@ class TranslationHandler(LookupHandler):
 
     name = "translation"
 
-    def __init__(self, translation_service: TranslationService, cache: CacheBase):
+    def __init__(
+        self, translation_service: TranslationService, cache: CacheBase
+    ):
         super().__init__()
         self.translation_service = translation_service
         self.cache = cache
 
-    def can_handle(self, selection_data: SelectionData) -> bool:
+    def can_handle(self, _selection_data: SelectionData) -> bool:
         return True
 
     def process(self, selection_data: SelectionData) -> LookupResult | None:
@@ -181,7 +187,9 @@ class LookupService:
         """Build handler chain: Cache → Dictionary → Translation"""
         cache_handler = CacheHandler(self.cache)
         dict_handler = DictionaryHandler(self.dictionary_service, self.cache)
-        trans_handler = TranslationHandler(self.translation_service, self.cache)
+        trans_handler = TranslationHandler(
+            self.translation_service, self.cache
+        )
 
         # Register handlers
         self._handlers = {
@@ -199,7 +207,7 @@ class LookupService:
     ) -> LookupResult | None:
         """
         Perform lookup using chain or specific handler.
-        
+
         Args:
             handler: Optional handler name ('dictionary', 'translation').
                     If None, uses automatic chain.
