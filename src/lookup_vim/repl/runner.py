@@ -11,7 +11,7 @@ Open/Closed: Add new input sources without modifying this code.
 import logging
 import os
 
-from lookup_vim.constants import FIFO_PATH
+from lookup_vim.config import get_config
 from lookup_vim.models import SelectionData
 from lookup_vim.repl.core import LookupEngine
 from lookup_vim.repl.display import console, display_error, display_result
@@ -192,36 +192,38 @@ class ReplRunner:
 
 def create_default_runner(
     cache_type: str = "memory",
-    source_lang: str = "French",
-    target_lang: str = "Russian",
+    source_lang: str | None = None,
+    target_lang: str | None = None,
     enable_stdin: bool = True,
     enable_fifo: bool = True,
-    fifo_path: str = FIFO_PATH,
+    fifo_path: str | None = None,
 ) -> ReplRunner:
     """Factory function to create a runner with default configuration
 
     Args:
         cache_type: Cache backend ("memory" or "jsonl")
-        source_lang: Source language for translations
-        target_lang: Target language for translations
+        source_lang: Source language for translations (from config.ini if None)
+        target_lang: Target language for translations (from config.ini if None)
         enable_stdin: Enable stdin input
         enable_fifo: Enable FIFO input from Vim
-        fifo_path: Path to FIFO file
+        fifo_path: Path to FIFO file (from config.ini if None)
 
     Returns:
         Configured ReplRunner
     """
+    config = get_config()
+
     engine = LookupEngine(
         cache_type=cache_type,
-        source_lang=source_lang,
-        target_lang=target_lang,
+        source_lang=source_lang or config.source_lang,
+        target_lang=target_lang or config.target_lang,
     )
 
     sources: list[InputSource] = []
     if enable_stdin:
         sources.append(StdinSource())
     if enable_fifo:
-        sources.append(FifoSource(fifo_path))
+        sources.append(FifoSource(fifo_path or config.fifo_path))
 
     return ReplRunner(engine=engine, sources=sources)
 

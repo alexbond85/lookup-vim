@@ -6,7 +6,7 @@ local fifo = require('text-selections.fifo')
 
 M.config = {
 	selections_file = vim.fn.expand("~/projects/alexbond/robert-online/history/selections.jsonl"),
-	fifo_path = "/tmp/robert-dict.fifo",
+	fifo_path = "/tmp/nvim-selection.fifo",
 }
 
 -- Storage for highlight namespace and mode state

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Setup script for robert-online FIFO
+# Setup script for nvim selection FIFO
 
-FIFO="/tmp/robert-dict.fifo"
+FIFO="/tmp/nvim-selection.fifo"
 
 # Create FIFO if it doesn't exist
 if [ ! -p "$FIFO" ]; then

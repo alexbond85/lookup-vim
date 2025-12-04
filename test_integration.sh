@@ -4,7 +4,7 @@
 echo "Testing FIFO Integration"
 echo "========================"
 
-FIFO_PATH="/tmp/robert-dict.fifo"
+FIFO_PATH="/tmp/nvim-selection.fifo"
 
 # Test 1: Check if FIFO exists (will be created by Python service)
 if [ -e "$FIFO_PATH" ]; then

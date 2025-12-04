@@ -81,9 +81,9 @@ class StdinSource:
 
 
 class FifoSource:
-    """FIFO named pipe input (receives JSON from Vim)"""
+    """FIFO named pipe input (receives JSON from nvim)"""
 
-    def __init__(self, path: str = "/tmp/robert-dict.fifo"):
+    def __init__(self, path: str):
         self.path = path
         self._fd: int | None = None
         self._file: IO[str] | None = None

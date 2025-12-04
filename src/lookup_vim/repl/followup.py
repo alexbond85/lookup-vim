@@ -11,8 +11,8 @@ class ConversationBuffer:
         self.last_query: str | None = None
         self.last_result: str | None = None
 
-    def start_conversation(self, query: str, result: str):
-        """Start a new conversation with initial query and result"""
+    def init_conversation(self, query: str, result: str):
+        """Initialize a new conversation with initial query and result"""
         self.messages = []
         self.last_query = query
         self.last_result = result

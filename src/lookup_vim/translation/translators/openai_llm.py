@@ -61,3 +61,25 @@ class OpenAILLM:
             raise ValueError("LLM generation failed: no output from API")
 
         return output
+
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.7,
+    ) -> str | None:
+        """
+        Chat completion with message history
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            temperature: Sampling temperature
+
+        Returns:
+            Assistant's response content or None
+        """
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=temperature,
+        )
+        return response.choices[0].message.content

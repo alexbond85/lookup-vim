@@ -2,7 +2,7 @@
 
 This module handles three types of dictionary lookups:
 
-1. Simple word (e.g., "chat", "manger"):
+1. Simple word (e.g., "bonjour", "manger"):
    - Direct fetch from /definition/word
    - Page contains definitions, examples, combinations
    - Returns WordResult immediately
@@ -25,7 +25,7 @@ import re
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from lookup_vim.constants import BASE_URL, DEFAULT_TIMEOUT
+from lookup_vim.constants import DEFAULT_TIMEOUT
 from lookup_vim.models import ConjugationResult, Definition, WordResult
 
 logger = logging.getLogger(__name__)
@@ -359,6 +359,8 @@ class LeRobertScraper:
     - Conjugation pages: returns conjugation information
     """
 
+    BASE_URL = "https://dictionnaire.lerobert.com"
+
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.fetcher = LeRobertFetcher(timeout)
         self.parser = LeRobertParser()
@@ -382,7 +384,7 @@ class LeRobertScraper:
         """
         logger.debug(f"Fetching definition for: {word}")
         original_word = word
-        url = f"{BASE_URL}/{word}"
+        url = f"{self.BASE_URL}/definition/{word}"
         soup, final_url = self.fetcher.fetch_html(url)
         logger.debug(f"Fetched URL: {final_url}")
 
@@ -419,7 +421,7 @@ class LeRobertScraper:
         base_verb = definition_result.word
 
         # Fetch the conjugation page
-        conj_url = f"https://dictionnaire.lerobert.com/conjugaison/{base_verb}"
+        conj_url = f"{self.BASE_URL}/conjugaison/{base_verb}"
         soup, final_url = self.fetcher.fetch_html(conj_url)
 
         return self.parser.conjugation_parser.parse(soup, final_url, word)

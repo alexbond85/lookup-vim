@@ -13,7 +13,7 @@ from lookup_vim.models import (
     TranslationResult,
     WordResult,
 )
-from lookup_vim.repl.conversation import ConversationBuffer
+from lookup_vim.repl.followup import ConversationBuffer
 from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.lookup_service import LookupService
 from lookup_vim.services.translation import TranslationService
@@ -94,7 +94,7 @@ class LookupEngine:
 
         # Start conversation context for potential follow-ups
         result_text = self._format_result_for_conversation(result)
-        self.conversation.start_conversation(data.selection, result_text)
+        self.conversation.init_conversation(data.selection, result_text)
 
         return result
 
@@ -112,14 +112,7 @@ class LookupEngine:
 
         try:
             messages = self.conversation.add_follow_up(question)
-
-            response = self._conversation_llm.client.chat.completions.create(
-                model=self._conversation_llm.model,
-                messages=messages,  # type: ignore[arg-type]
-                temperature=0.7,
-            )
-
-            answer = response.choices[0].message.content
+            answer = self._conversation_llm.chat(messages)
             if answer:
                 self.conversation.add_response(answer)
 

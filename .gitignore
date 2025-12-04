@@ -211,3 +211,6 @@ tmp/
 .DS_Store
 /history
 /books
+
+# Local config (copy from config.ini.example)
+config.ini
