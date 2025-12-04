@@ -12,6 +12,7 @@ _DEFAULTS = {
     "fifo_path": "/tmp/nvim-selection.fifo",
     "source_lang": "French",
     "target_lang": "Russian",
+    "debug": False,
 }
 
 
@@ -22,6 +23,7 @@ class Config:
     fifo_path: str
     source_lang: str
     target_lang: str
+    debug: bool
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -40,4 +42,5 @@ def load_config(path: Path | None = None) -> Config:
         target_lang=parser.get(
             "translation", "target_lang", fallback=_DEFAULTS["target_lang"]
         ),
+        debug=parser.getboolean("app", "debug", fallback=_DEFAULTS["debug"]),
     )

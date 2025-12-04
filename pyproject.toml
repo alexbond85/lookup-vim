@@ -27,7 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-lookup-repl = "lookup_vim.repl:main"
+lookup = "lookup_vim.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,61 +1,29 @@
-"""Lookup service console
+"""Lookup service standalone interface
 
-Interactive REPL for testing the full lookup chain (cache → dictionary → translation).
+Interactive shell for testing the full lookup chain (cache → dictionary → translation).
 
 Usage:
-    python -m lookup_vim.repl.consoles.lookup
+    python -m lookup_vim.cli.standalone.lookup
 """
 
 from rich.console import Console
 
-from lookup_vim.cache import create_cache
-from lookup_vim.config import load_config
+from lookup_vim.cli.display import display_error, display_result
+from lookup_vim.cli.factory import ServiceFactory
 from lookup_vim.models import SelectionData
-from lookup_vim.services.dictionary import DictionaryService
-from lookup_vim.services.lookup import LookupService
-from lookup_vim.services.translation import TranslationService
-from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
-from lookup_vim.translation.translators.openai_llm import OpenAILLM
-from lookup_vim.translation.translators.prompts import TranslationPrompts
-from lookup_vim.translation.translators.translator import Translator
-from lookup_vim.repl.display import display_result, display_error
 
 console = Console()
 
 
-def create_lookup_service(
-    cache_type: str = "memory",
-    source_lang: str | None = None,
-    target_lang: str | None = None,
-) -> LookupService:
-    """Create lookup service with all dependencies"""
-    config = load_config()
-    src = source_lang or config.source_lang
-    tgt = target_lang or config.target_lang
-
-    cache = create_cache(cache_type)
-
-    # Translation service
-    llm = OpenAILLM(model="gpt-5.1")
-    prompts = TranslationPrompts.create(source_lang=src, target_lang=tgt)
-    translator = Translator(structured_llm=llm, prompts=prompts)
-    translation_service = TranslationService(provider=translator)
-
-    # Dictionary service
-    scraper = LeRobertScraper()
-    dictionary_service = DictionaryService(scraper)
-
-    # Lookup service with dictionary
-    return LookupService(cache, translation_service).with_dictionary(dictionary_service)
-
-
 def main():
-    """Lookup console REPL"""
-    config = load_config()
-    service = create_lookup_service()
+    """Lookup standalone shell"""
+    factory = ServiceFactory()
+    service = factory.lookup_service
 
-    console.print("[cyan]🔍 Lookup Console[/cyan]")
-    console.print(f"[dim]Chain: cache → dictionary → translation ({config.source_lang} → {config.target_lang})[/dim]\n")
+    console.print("[cyan]🔍 Lookup[/cyan]")
+    console.print(
+        f"[dim]Chain: cache → dictionary → translation ({factory.source_lang} → {factory.target_lang})[/dim]\n"
+    )
     console.print("[dim]Commands:[/dim]")
     console.print("[dim]  <text>           - Auto lookup (chain)[/dim]")
     console.print("[dim]  d:<word>         - Force dictionary lookup[/dim]")

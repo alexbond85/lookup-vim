@@ -71,7 +71,10 @@ class JSONLCache(CacheBase):
         if not isinstance(data, dict) or "_type" not in data:
             return data
 
+        # Make a copy to avoid mutating the cached data
+        data = data.copy()
         result_type = data.pop("_type")
+
         if result_type == "WordResult":
             # Convert definition dicts back to Definition objects
             data["definitions"] = [

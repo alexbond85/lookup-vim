@@ -1,3 +1,7 @@
+[app]
+# Enable debug mode (prints full tracebacks on errors)
+debug = false
+
 [fifo]
 # Path to FIFO for receiving selections from nvim
 path = /tmp/nvim-selection.fifo

@@ -1,4 +1,4 @@
-"""REPL runner - orchestrates lookups and conversations
+"""Main CLI application - orchestrates lookups and conversations
 
 This is the main entry point that orchestrates:
 - Input sources (stdin, FIFO, etc.)
@@ -12,41 +12,28 @@ Open/Closed: Add new input sources without modifying this code.
 import logging
 import os
 
-from lookup_vim.cache import create_cache
-from lookup_vim.config import load_config
+from lookup_vim.cli.display import console, display_error, display_result
+from lookup_vim.cli.inputs import (
+    InputEvent,
+    InputMultiplexer,
+    InputSource,
+)
 from lookup_vim.models import (
     ConjugationResult,
     SelectionData,
     TranslationResult,
     WordResult,
 )
-from lookup_vim.repl.display import console, display_error, display_result
-from lookup_vim.repl.inputs import (
-    FifoSource,
-    InputEvent,
-    InputMultiplexer,
-    InputSource,
-    StdinSource,
-)
 from lookup_vim.services.conversation import ConversationService
-from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.lookup import LookupService
-from lookup_vim.services.translation import TranslationService
-from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
-from lookup_vim.translation.translators.openai_llm import OpenAILLM
-from lookup_vim.translation.translators.prompts import (
-    ConversationPrompt,
-    TranslationPrompts,
-)
-from lookup_vim.translation.translators.translator import Translator
 
 logger = logging.getLogger(__name__)
 
 LookupResult = WordResult | ConjugationResult | TranslationResult | None
 
 
-class ReplRunner:
-    """REPL runner with pluggable input sources
+class LookupApp:
+    """Main lookup application with pluggable input sources
 
     Uses composition to combine:
     - InputMultiplexer for input handling
@@ -76,15 +63,15 @@ class ReplRunner:
         self._inputs.add_source(source)
 
     def start(self):
-        """Start the REPL loop"""
+        """Start the main loop"""
         source_names = [s.name for s in self._inputs.sources]
-        console.print("[blue]Robert Lookup REPL[/blue]\n")
+        console.print("[blue]Robert Lookup[/blue]\n")
         console.print(f"[dim]Listening: {', '.join(source_names)}[/dim]\n")
 
         try:
             self._main_loop()
         except KeyboardInterrupt:
-            print("\n\nREPL stopped")
+            print("\n\nStopped")
         finally:
             self._inputs.close()
 
@@ -106,7 +93,7 @@ class ReplRunner:
             # Handle the event
             should_exit = self._handle_event(event)
             if should_exit:
-                print("\nREPL stopped")
+                print("\nStopped")
                 return
 
     def _display_prompt(self):
@@ -247,85 +234,27 @@ class ReplRunner:
         return f"Query: {query}\nResult: {content}"
 
 
-def create_default_runner(
-    cache_type: str = "memory",
-    source_lang: str | None = None,
-    target_lang: str | None = None,
-    enable_stdin: bool = True,
-    enable_fifo: bool = True,
-    fifo_path: str | None = None,
-) -> ReplRunner:
-    """Factory function to create a runner with default configuration
-
-    Args:
-        cache_type: Cache backend ("memory" or "jsonl")
-        source_lang: Source language for translations (from config.ini if None)
-        target_lang: Target language for translations (from config.ini if None)
-        enable_stdin: Enable stdin input
-        enable_fifo: Enable FIFO input from Vim
-        fifo_path: Path to FIFO file (from config.ini if None)
-
-    Returns:
-        Configured ReplRunner
-    """
-    config = load_config()
-
-    # Resolve languages from config
-    src_lang = source_lang or config.source_lang
-    tgt_lang = target_lang or config.target_lang
-
-    # Build services
-    cache = create_cache(cache_type)
-
-    # Translation LLM and service
-    translation_llm = OpenAILLM(model="gpt-5.1")
-    prompts = TranslationPrompts.create(
-        source_lang=src_lang, target_lang=tgt_lang
-    )
-    translator = Translator(structured_llm=translation_llm, prompts=prompts)
-    translation_service = TranslationService(provider=translator)
-
-    # Dictionary service
-    scraper = LeRobertScraper()
-    dictionary_service = DictionaryService(scraper)
-
-    # Lookup service with dictionary
-    lookup_service = LookupService(cache, translation_service).with_dictionary(
-        dictionary_service
-    )
-
-    # Conversation service
-    conversation_llm = OpenAILLM(model="gpt-5.1")
-    conversation_prompt = ConversationPrompt.create(
-        source_lang=src_lang, target_lang=tgt_lang
-    )
-    conversation_service = ConversationService(
-        llm=conversation_llm,
-        prompt=conversation_prompt,
-    )
-
-    # Input sources
-    sources: list[InputSource] = []
-    if enable_stdin:
-        sources.append(StdinSource())
-    if enable_fifo:
-        sources.append(FifoSource(fifo_path or config.fifo_path))
-
-    return ReplRunner(
-        lookup_service=lookup_service,
-        conversation_service=conversation_service,
-        sources=sources,
-    )
-
-
 def main():
-    """Entry point for the REPL"""
-    logging.basicConfig(level=logging.WARNING)
+    """Entry point for the CLI"""
+    import traceback
+
+    from lookup_vim.cli.factory import ServiceFactory
 
     cache_type = os.environ.get("CACHE_TYPE", "jsonl")
-    runner = create_default_runner(cache_type=cache_type)
-    runner.start()
+    factory = ServiceFactory(cache_type=cache_type)
+    factory.setup_logging()
+
+    try:
+        app = factory.create_app()
+        app.start()
+    except Exception as e:
+        if factory.debug:
+            traceback.print_exc()
+        else:
+            console.print(f"[red]Error: {e}[/red]")
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":
     main()
+

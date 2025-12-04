@@ -1,4 +1,4 @@
-"""Input sources for the REPL - Open/Closed design
+"""Input sources for the CLI - Open/Closed design
 
 Protocol-based abstraction allows adding new input sources
 without modifying existing code.
@@ -200,3 +200,4 @@ class InputMultiplexer:
             source.close()
         self._sources.clear()
         self._fd_to_source.clear()
+

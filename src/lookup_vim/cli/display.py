@@ -134,3 +134,4 @@ def display_result(
         display_word_result(result)  # type: ignore[arg-type]
     elif isinstance(result, TranslationResult):
         display_translation_result(result)
+

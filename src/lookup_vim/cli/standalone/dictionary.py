@@ -1,31 +1,25 @@
-"""Dictionary service console
+"""Dictionary service standalone interface
 
-Interactive REPL for testing LeRobert dictionary lookups.
+Interactive shell for testing LeRobert dictionary lookups.
 
 Usage:
-    python -m lookup_vim.repl.consoles.dictionary
+    python -m lookup_vim.cli.standalone.dictionary
 """
 
 from rich.console import Console
 
-from lookup_vim.services.dictionary import DictionaryService
-from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
-from lookup_vim.repl.display import display_word_result, display_error
+from lookup_vim.cli.display import display_error, display_word_result
+from lookup_vim.cli.factory import ServiceFactory
 
 console = Console()
 
 
-def create_dictionary_service() -> DictionaryService:
-    """Create dictionary service with LeRobert scraper"""
-    scraper = LeRobertScraper()
-    return DictionaryService(scraper)
-
-
 def main():
-    """Dictionary console REPL"""
-    service = create_dictionary_service()
+    """Dictionary standalone shell"""
+    factory = ServiceFactory()
+    service = factory.dictionary_service
 
-    console.print("[cyan]📖 Dictionary Console[/cyan]")
+    console.print("[cyan]📖 Dictionary[/cyan]")
     console.print("[dim]LeRobert dictionary lookups[/dim]\n")
 
     while True:
@@ -45,7 +39,7 @@ def main():
         try:
             result = service.lookup_word(word)
             display_word_result(result)
-        except ValueError as e:
+        except ValueError:
             display_error(f"Not found: {word}")
         except Exception as e:
             display_error(str(e))
