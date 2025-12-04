@@ -1,8 +1,9 @@
-"""REPL runner - ties inputs to the lookup engine
+"""REPL runner - orchestrates lookups and conversations
 
 This is the main entry point that orchestrates:
 - Input sources (stdin, FIFO, etc.)
-- Core lookup engine
+- LookupService for lookups
+- ConversationService for follow-up conversations
 - Display/output
 
 Open/Closed: Add new input sources without modifying this code.
@@ -11,9 +12,14 @@ Open/Closed: Add new input sources without modifying this code.
 import logging
 import os
 
-from lookup_vim.config import get_config
-from lookup_vim.models import SelectionData
-from lookup_vim.repl.core import LookupEngine
+from lookup_vim.cache import create_cache
+from lookup_vim.config import load_config
+from lookup_vim.models import (
+    ConjugationResult,
+    SelectionData,
+    TranslationResult,
+    WordResult,
+)
 from lookup_vim.repl.display import console, display_error, display_result
 from lookup_vim.repl.inputs import (
     FifoSource,
@@ -22,8 +28,21 @@ from lookup_vim.repl.inputs import (
     InputSource,
     StdinSource,
 )
+from lookup_vim.services.conversation import ConversationService
+from lookup_vim.services.dictionary import DictionaryService
+from lookup_vim.services.lookup import LookupService
+from lookup_vim.services.translation import TranslationService
+from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
+from lookup_vim.translation.translators.openai_llm import OpenAILLM
+from lookup_vim.translation.translators.prompts import (
+    ConversationPrompt,
+    TranslationPrompts,
+)
+from lookup_vim.translation.translators.translator import Translator
 
 logger = logging.getLogger(__name__)
+
+LookupResult = WordResult | ConjugationResult | TranslationResult | None
 
 
 class ReplRunner:
@@ -31,7 +50,8 @@ class ReplRunner:
 
     Uses composition to combine:
     - InputMultiplexer for input handling
-    - LookupEngine for core logic
+    - LookupService for lookups
+    - ConversationService for follow-up conversations
     - Display functions for output
 
     Add new input sources via add_source() without modifying this class.
@@ -39,10 +59,12 @@ class ReplRunner:
 
     def __init__(
         self,
-        engine: LookupEngine,
+        lookup_service: LookupService,
+        conversation_service: ConversationService,
         sources: list[InputSource] | None = None,
     ):
-        self._engine = engine
+        self._lookup_service = lookup_service
+        self._conversation_service = conversation_service
         self._inputs = InputMultiplexer(sources or [])
 
         # Context from FIFO for phrase/paragraph translation
@@ -95,7 +117,7 @@ class ReplRunner:
             options.append("[1] phrase")
         if self._current_paragraph:
             options.append("[2] paragraph")
-        if self._engine.conversation.has_conversation():
+        if self._conversation_service.has_conversation():
             options.append("[?] follow-up")
 
         if options:
@@ -131,7 +153,7 @@ class ReplRunner:
                 self._lookup_text(self._current_paragraph)
                 return False
 
-            if text == "?" and self._engine.conversation.has_conversation():
+            if text == "?" and self._conversation_service.has_conversation():
                 self._handle_follow_up()
                 return False
 
@@ -162,10 +184,19 @@ class ReplRunner:
 
     def _process_lookup(self, data: SelectionData):
         """Process a lookup request"""
-        result = self._engine.lookup(data)
+        # Reset follow-up conversation for new lookup
+        self._conversation_service.reset()
+
+        result = self._lookup_service.lookup(data)
         if result is None:
             display_error("Failed to lookup or translate")
             return
+
+        # Initialize follow-up conversation with result context
+        result_text = self._format_result_for_conversation(
+            data.selection, result
+        )
+        self._conversation_service.add_assistant_message(result_text)
 
         display_result(result)
 
@@ -182,12 +213,38 @@ class ReplRunner:
         question = event.text.strip()
         console.print()
 
-        answer = self._engine.follow_up(question)
+        answer = self._conversation_service.generate_response(question)
         if answer:
             console.print("[blue]Answer:[/blue]\n")
             console.print(f"{answer}\n")
         else:
             display_error("Failed to get response")
+
+    def _format_result_for_conversation(
+        self, query: str, result: LookupResult
+    ) -> str:
+        """Format result as text for conversation context"""
+        if isinstance(result, TranslationResult):
+            content = (
+                f"Translation: {result.translation}\n"
+                f"Explanations: {result.explanations}"
+            )
+        elif isinstance(result, WordResult):
+            lines = []
+            for i, d in enumerate(result.definitions, 1):
+                lines.append(f"{i}. {d.definition}")
+                for ex in d.examples[:2]:
+                    lines.append(f"   → {ex}")
+            definitions = "\n".join(lines)
+            content = f"Word: {result.word}\nDefinitions:\n{definitions}"
+        elif isinstance(result, ConjugationResult):
+            content = (
+                f"Conjugation of: {result.redirected_to}\n{result.message}"
+            )
+        else:
+            content = str(result) if result else ""
+
+        return f"Query: {query}\nResult: {content}"
 
 
 def create_default_runner(
@@ -211,21 +268,54 @@ def create_default_runner(
     Returns:
         Configured ReplRunner
     """
-    config = get_config()
+    config = load_config()
 
-    engine = LookupEngine(
-        cache_type=cache_type,
-        source_lang=source_lang or config.source_lang,
-        target_lang=target_lang or config.target_lang,
+    # Resolve languages from config
+    src_lang = source_lang or config.source_lang
+    tgt_lang = target_lang or config.target_lang
+
+    # Build services
+    cache = create_cache(cache_type)
+
+    # Translation LLM and service
+    translation_llm = OpenAILLM(model="gpt-5.1")
+    prompts = TranslationPrompts.create(
+        source_lang=src_lang, target_lang=tgt_lang
+    )
+    translator = Translator(structured_llm=translation_llm, prompts=prompts)
+    translation_service = TranslationService(provider=translator)
+
+    # Dictionary service
+    scraper = LeRobertScraper()
+    dictionary_service = DictionaryService(scraper)
+
+    # Lookup service with dictionary
+    lookup_service = LookupService(cache, translation_service).with_dictionary(
+        dictionary_service
     )
 
+    # Conversation service
+    conversation_llm = OpenAILLM(model="gpt-5.1")
+    conversation_prompt = ConversationPrompt.create(
+        source_lang=src_lang, target_lang=tgt_lang
+    )
+    conversation_service = ConversationService(
+        llm=conversation_llm,
+        prompt=conversation_prompt,
+    )
+
+    # Input sources
     sources: list[InputSource] = []
     if enable_stdin:
         sources.append(StdinSource())
     if enable_fifo:
         sources.append(FifoSource(fifo_path or config.fifo_path))
 
-    return ReplRunner(engine=engine, sources=sources)
+    return ReplRunner(
+        lookup_service=lookup_service,
+        conversation_service=conversation_service,
+        sources=sources,
+    )
 
 
 def main():

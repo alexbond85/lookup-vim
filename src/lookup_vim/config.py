@@ -25,14 +25,7 @@ class Config:
 
 
 def load_config(path: Path | None = None) -> Config:
-    """Load configuration from INI file
-
-    Args:
-        path: Path to config file, defaults to config.ini in repo root
-
-    Returns:
-        Config with values from file or defaults
-    """
+    """Load configuration from INI file"""
     config_path = path or _CONFIG_PATH
     parser = configparser.ConfigParser()
 
@@ -48,15 +41,3 @@ def load_config(path: Path | None = None) -> Config:
             "translation", "target_lang", fallback=_DEFAULTS["target_lang"]
         ),
     )
-
-
-# Singleton instance
-_config: Config | None = None
-
-
-def get_config() -> Config:
-    """Get or create the singleton config instance"""
-    global _config
-    if _config is None:
-        _config = load_config()
-    return _config

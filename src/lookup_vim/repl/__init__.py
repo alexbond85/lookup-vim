@@ -2,30 +2,24 @@
 
 Architecture:
     - inputs.py: Input sources (Protocol + StdinSource, FifoSource, Multiplexer)
-    - core.py: LookupEngine (input-agnostic lookup logic)
-    - runner.py: ReplRunner (ties inputs to engine)
+    - runner.py: ReplRunner (orchestrates LookupService + FollowUpService)
     - display.py: Rich output formatting
-    - conversation.py: Follow-up conversation state
 
 Usage:
     from lookup_vim.repl import main
     main()
 
 Or create custom configuration:
-    from lookup_vim.repl import create_default_runner, LookupEngine, ReplRunner
-    from lookup_vim.repl.inputs import StdinSource, FifoSource
+    from lookup_vim.repl import create_default_runner, ReplRunner
 
-    engine = LookupEngine(cache_type="jsonl")
-    runner = ReplRunner(engine, sources=[StdinSource()])
+    runner = create_default_runner(cache_type="jsonl")
     runner.start()
 """
 
-from lookup_vim.repl.core import LookupEngine
 from lookup_vim.repl.runner import ReplRunner, create_default_runner, main
 
 __all__ = [
     "main",
-    "LookupEngine",
     "ReplRunner",
     "create_default_runner",
 ]

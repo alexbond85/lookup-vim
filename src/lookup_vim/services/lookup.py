@@ -165,41 +165,72 @@ class TranslationHandler(LookupHandler):
 
 
 class LookupService:
-    """Orchestrates lookup handlers. Use lookup() for automatic chain or specify handler."""
+    """Orchestrates lookup handlers.
+
+    Required: cache, translation_service
+    Optional: dictionary_service (use .with_dictionary())
+
+    Usage:
+        service = (
+            LookupService(cache, translation_service)
+            .with_dictionary(dictionary_service)
+        )
+    """
 
     def __init__(
         self,
         cache: CacheBase,
-        dictionary_service: DictionaryService,
         translation_service: TranslationService,
     ):
-        self.cache = cache
-        self.dictionary_service = dictionary_service
-        self.translation_service = translation_service
+        self._cache = cache
+        self._translation_service = translation_service
+        self._dictionary_service: DictionaryService | None = None
 
         # Handler registry for direct access
         self._handlers: dict[str, LookupHandler] = {}
+        self._chain_head: LookupHandler | None = None
 
-        # Build the default chain and populate registry
         self._build_chain()
 
+    def with_dictionary(self, service: DictionaryService) -> LookupService:
+        """Add dictionary lookup to the chain"""
+        self._dictionary_service = service
+        self._build_chain()
+        return self
+
+    @property
+    def source_lang(self) -> str:
+        """Source language from translation service"""
+        return self._translation_service.provider.prompts.source_lang
+
+    @property
+    def target_lang(self) -> str:
+        """Target language from translation service"""
+        return self._translation_service.provider.prompts.target_lang
+
     def _build_chain(self) -> None:
-        """Build handler chain: Cache → Dictionary → Translation"""
-        cache_handler = CacheHandler(self.cache)
-        dict_handler = DictionaryHandler(self.dictionary_service, self.cache)
+        """Build handler chain: Cache → [Dictionary] → Translation"""
+        cache_handler = CacheHandler(self._cache)
         trans_handler = TranslationHandler(
-            self.translation_service, self.cache
+            self._translation_service, self._cache
         )
 
         # Register handlers
         self._handlers = {
             cache_handler.name: cache_handler,
-            dict_handler.name: dict_handler,
             trans_handler.name: trans_handler,
         }
 
-        # Chain them
-        cache_handler.set_next(dict_handler).set_next(trans_handler)
+        # Build chain based on available services
+        if self._dictionary_service:
+            dict_handler = DictionaryHandler(
+                self._dictionary_service, self._cache
+            )
+            self._handlers[dict_handler.name] = dict_handler
+            cache_handler.set_next(dict_handler).set_next(trans_handler)
+        else:
+            cache_handler.set_next(trans_handler)
+
         self._chain_head = cache_handler
 
     def lookup(
@@ -227,4 +258,6 @@ class LookupService:
             return self._handlers[handler].process(selection_data)
 
         # Default: use the chain
+        if self._chain_head is None:
+            return None
         return self._chain_head.handle(selection_data)

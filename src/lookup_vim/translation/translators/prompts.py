@@ -4,6 +4,23 @@ from dataclasses import dataclass
 
 
 @dataclass
+class ConversationPrompt:
+    """System prompt for follow-up conversations"""
+
+    system_prompt: str
+
+    @classmethod
+    def create(cls, source_lang: str, target_lang: str) -> ConversationPrompt:
+        """Create a conversation prompt for language learning context"""
+        system_prompt = (
+            f"Aide à la lecture en {source_lang} pour locuteur "
+            f"{target_lang}. Parle {source_lang}/{target_lang} "
+            f"uniquement. Apprenant avancé. Réponses brèves et ciblées."
+        )
+        return cls(system_prompt=system_prompt)
+
+
+@dataclass
 class TranslationPrompts:
     """Translation prompts handler"""
 
