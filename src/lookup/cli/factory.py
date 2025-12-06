@@ -31,7 +31,6 @@ from lookup.orchestration.service import LookupService
 from lookup.translation.llm.openai import OpenAILLM
 from lookup.translation.prompts import Prompts
 from lookup.translation.service import TranslationService
-from lookup.translation.translator import Translator
 
 
 def create_cache(cache_type: str = "memory") -> CacheBase:
@@ -120,8 +119,9 @@ class ServiceFactory:
     def translation_service(self) -> TranslationService:
         if self._translation_service is None:
             llm = OpenAILLM(model=self.model)
-            translator = Translator(llm=llm, prompts=self.prompts)
-            self._translation_service = TranslationService(provider=translator)
+            self._translation_service = TranslationService(
+                llm=llm, prompts=self.prompts
+            )
         return self._translation_service
 
     @property

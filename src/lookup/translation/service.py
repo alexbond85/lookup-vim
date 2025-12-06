@@ -1,11 +1,12 @@
-"""Translation service with dependency injection"""
+"""Translation service"""
 
 from typing import cast
 
 from pydantic import BaseModel
 
 from lookup.domain import TranslationResult
-from lookup.translation.translator import Translator
+from lookup.translation.llm.base import StructuredOutputLLM
+from lookup.translation.prompts import Prompts
 
 
 class TranslationOutput(BaseModel):
@@ -16,16 +17,11 @@ class TranslationOutput(BaseModel):
 
 
 class TranslationService:
-    """High-level translation service that delegates to a translator"""
+    """Translation service using LLM with structured output"""
 
-    def __init__(self, provider: Translator):
-        """
-        Initialize the translation service
-
-        Args:
-            provider: Translator instance
-        """
-        self.provider = provider
+    def __init__(self, llm: StructuredOutputLLM, prompts: Prompts):
+        self.llm = llm
+        self.prompts = prompts
 
     def translate(
         self, query: str, context: str | None = None
@@ -40,13 +36,15 @@ class TranslationService:
         Returns:
             TranslationResult containing translation and explanations
         """
-        # Call the provider with the structured output model
         output = cast(
             TranslationOutput,
-            self.provider.translate(query, context, TranslationOutput),
+            self.llm.structured_response(
+                user_prompt=self.prompts.user(query, context),
+                system_prompt=self.prompts.system(),
+                output_model=TranslationOutput,
+            ),
         )
 
-        # Convert to TranslationResult for backward compatibility
         return TranslationResult(
             query=query,
             translation=output.translation,
