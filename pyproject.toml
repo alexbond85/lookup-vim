@@ -1,5 +1,5 @@
 [project]
-name = "lookup-vim"
+name = "lookup"
 version = "0.1.0"
 description = "A CLI tool for reading foreign language books with integrated dictionary lookups and translations, seamlessly integrated with Vim"
 authors = [
@@ -27,14 +27,14 @@ dev = [
 ]
 
 [project.scripts]
-lookup = "lookup_vim.cli:main"
+lookup = "lookup.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lookup_vim"]
+packages = ["src/lookup"]
 
 [tool.ruff]
 line-length = 79
@@ -71,4 +71,3 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 strict_equality = true
-
