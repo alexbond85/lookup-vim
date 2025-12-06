@@ -185,7 +185,9 @@ class LookupApp:
         )
         self._conversation_service.add_assistant_message(result_text)
 
-        display_result(result)
+        # Pass phrase context to display
+        phrase = data.phrase if data.phrase else None
+        display_result(result, phrase)
 
     def _handle_follow_up(self):
         """Handle follow-up question flow"""

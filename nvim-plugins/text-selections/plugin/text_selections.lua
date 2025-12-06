@@ -3,6 +3,15 @@ if vim.g.loaded_text_selections then
 end
 vim.g.loaded_text_selections = true
 
+-- Auto-setup with project cache directory
+local plugin_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":p:h")
+local project_root = vim.fn.fnamemodify(plugin_path, ":h:h:h")  -- Go up 3 levels from plugin/
+local cache_dir = project_root .. "/.cache"
+
+require("text-selections").setup({
+	cache_dir = cache_dir
+})
+
 -- Keymap to save selection in VISUAL mode
 vim.keymap.set("v", ",,", function()
 	local selections = require("text-selections")

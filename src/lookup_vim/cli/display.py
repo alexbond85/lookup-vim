@@ -22,7 +22,7 @@ def display_greeting():
     console.print()
 
 
-def display_word_result(result: WordResult):
+def display_word_result(result: WordResult, phrase: str | None = None):
     """Display dictionary word result with definitions, examples, and combinations"""
 
     # Header with word
@@ -34,6 +34,11 @@ def display_word_result(result: WordResult):
     console.print(
         Panel(header_text, box=box.ROUNDED, border_style="cyan", expand=False)
     )
+    
+    # Show phrase context if available
+    if phrase:
+        console.print("\n[dim]📄 Phrase:[/dim]\n")
+        console.print(f"  [dim italic]{phrase}[/dim italic]\n")
 
     # Definitions section
     if result.definitions:
@@ -99,9 +104,9 @@ def display_translation_result(result: TranslationResult):
         console.print("\n[dim]📝 Explanations:[/dim]\n")
         console.print(f"  [dim]{result.explanations}[/dim]\n")
 
-    # Context if provided
+    # Context (phrase) if provided
     if result.context:
-        console.print("[dim]📄 Context:[/dim]\n")
+        console.print("[dim]📄 Phrase:[/dim]\n")
         console.print(f"  [dim italic]{result.context}[/dim italic]\n")
 
 
@@ -125,12 +130,13 @@ def display_prompt(has_context: bool = False):
 
 def display_result(
     result: WordResult | ConjugationResult | TranslationResult | None,
+    phrase: str | None = None,
 ) -> None:
     """Polymorphic display dispatcher for all result types"""
     if result is None:
         return
 
     if isinstance(result, (WordResult, ConjugationResult)):
-        display_word_result(result)  # type: ignore[arg-type]
+        display_word_result(result, phrase)  # type: ignore[arg-type]
     elif isinstance(result, TranslationResult):
         display_translation_result(result)

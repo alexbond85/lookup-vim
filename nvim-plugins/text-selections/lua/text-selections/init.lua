@@ -59,6 +59,12 @@ function M.setup(opts)
 end
 
 function M.toggle_highlight_mode()
+	-- Check if setup has been called
+	if not M.config.selections_file then
+		vim.notify("text-selections: setup() must be called before using this plugin", vim.log.levels.ERROR)
+		return
+	end
+	
 	-- Capture original highlight BEFORE changing mode (only once, when first toggling ON)
 	if not M.original_visual_hl then
 		M.original_visual_hl = vim.api.nvim_get_hl(0, {name = "Visual"})
@@ -97,6 +103,12 @@ function M.save_selection()
 		return
 	end
 	
+	-- Check if setup has been called
+	if not M.config.selections_file then
+		vim.notify("text-selections: setup() not called", vim.log.levels.ERROR)
+		return
+	end
+	
 	-- Get text from the unnamed register (what was just yanked)
 	local selected_text = vim.fn.getreg('"')
 	
@@ -125,9 +137,23 @@ function M.highlight_text(text)
 	local buf = vim.api.nvim_get_current_buf()
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-	-- Escape special pattern characters for plain text search
-	local escaped = text:gsub("([%.%*%+%-%?%[%]%^%$%(%)%%])", "%%%1")
+	-- Check if text contains newlines (multi-line selection)
+	if text:find('\n') then
+		-- Try to highlight as multi-line first
+		M.highlight_multiline_text(buf, lines, text)
+		
+		-- Also try highlighting with newlines replaced by spaces
+		-- (this matches how context functions join lines)
+		local text_with_spaces = text:gsub('\n', ' ')
+		M.highlight_singleline_text(buf, lines, text_with_spaces)
+	else
+		-- Handle single-line selections (original logic)
+		M.highlight_singleline_text(buf, lines, text)
+	end
+end
 
+function M.highlight_singleline_text(buf, lines, text)
+	-- Original single-line highlighting logic
 	for line_num = 1, #lines do
 		local line_text = lines[line_num]
 		local start_col = 1
@@ -149,8 +175,61 @@ function M.highlight_text(text)
 	end
 end
 
+function M.highlight_multiline_text(buf, lines, text)
+	-- Split the text by newlines, preserving empty lines
+	local text_lines = vim.split(text, '\n', {plain = true})
+	
+	-- Remove empty trailing element if text ends with newline
+	if #text_lines > 0 and text_lines[#text_lines] == "" then
+		table.remove(text_lines)
+	end
+	
+	if #text_lines == 0 or #text_lines == 1 then
+		return  -- Not a multi-line selection
+	end
+	
+	-- Search for the pattern across consecutive lines
+	for start_line = 1, #lines - #text_lines + 1 do
+		local match = true
+		local match_positions = {}
+		
+		-- Check if all lines match
+		for i = 1, #text_lines do
+			local line_idx = start_line + i - 1
+			local line_text = lines[line_idx]
+			local match_pos = line_text:find(text_lines[i], 1, true)
+			
+			if not match_pos then
+				match = false
+				break
+			end
+			
+			match_positions[i] = match_pos
+		end
+		
+		if match then
+			-- Highlight each line of the match
+			for i = 1, #text_lines do
+				local line_num = start_line + i - 1
+				local start_col = match_positions[i] - 1  -- Convert to 0-indexed
+				local end_col = start_col + #text_lines[i]
+				
+				pcall(vim.api.nvim_buf_set_extmark, buf, M.ns_id, line_num - 1, start_col, {
+					end_col = end_col,
+					hl_group = "Underlined",
+				})
+			end
+		end
+	end
+end
+
 function M.load_and_highlight()
 	if not M.highlight_mode then
+		return
+	end
+	
+	-- Check if setup has been called
+	if not M.config.selections_file then
 		return
 	end
 
