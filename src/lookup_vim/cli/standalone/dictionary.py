@@ -8,7 +8,7 @@ Usage:
 
 from rich.console import Console
 
-from lookup_vim.cli.display import display_error, display_word_result
+from lookup_vim.cli.display import display_error, display_result
 from lookup_vim.cli.factory import ServiceFactory
 
 console = Console()
@@ -38,7 +38,7 @@ def main():
 
         try:
             result = service.lookup_word(word)
-            display_word_result(result)
+            display_result(result)
         except ValueError:
             display_error(f"Not found: {word}")
         except Exception as e:

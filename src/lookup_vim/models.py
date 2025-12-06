@@ -22,7 +22,7 @@ class WordResult:
     word_combinations: list[str] = field(default_factory=list)
 
 
-# not used yet
+# not used
 @dataclass
 class ConjugationResult:
     """Result when a word redirects to a conjugation page"""

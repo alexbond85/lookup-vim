@@ -17,12 +17,8 @@ from lookup_vim.models import (
 class JSONLCache(CacheBase):
     """JSONL-based persistent cache implementation with rich metadata"""
 
-    def __init__(self):
-        # .cache/selections.jsonl in project root
-        # Navigate from src/lookup_vim/cache/ to project root
-        project_root = Path(__file__).parent.parent.parent.parent
-        self.cache_file = project_root / ".cache" / "selections.jsonl"
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, cache_file: Path):
+        self.cache_file = cache_file
         self._cache: dict[str, Any] = {}
         self._load()
 

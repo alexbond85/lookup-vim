@@ -4,16 +4,15 @@ import configparser
 from dataclasses import dataclass
 from pathlib import Path
 
-# Default config path: config.ini in repository root
-_CONFIG_PATH = Path(__file__).parent.parent.parent / "config.ini"
+# Project root: navigate from src/lookup_vim/ to root
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-# Defaults if config.ini is missing
-_DEFAULTS = {
-    "fifo_path": "/tmp/nvim-selection.fifo",
-    "source_lang": "French",
-    "target_lang": "Russian",
-    "debug": False,
-}
+# Default config path: config.ini in repository root
+_CONFIG_PATH = PROJECT_ROOT / "config.ini"
+
+# Cache directory (not configurable)
+CACHE_DIR = PROJECT_ROOT / ".cache"
+FIFO_PATH = CACHE_DIR / "nvim-selection.fifo"
 
 
 @dataclass
@@ -34,13 +33,16 @@ def load_config(path: Path | None = None) -> Config:
     if config_path.exists():
         parser.read(config_path)
 
+    # Ensure cache directory exists
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
     return Config(
-        fifo_path=parser.get("fifo", "path", fallback=_DEFAULTS["fifo_path"]),
+        fifo_path=str(FIFO_PATH),
         source_lang=parser.get(
-            "translation", "source_lang", fallback=_DEFAULTS["source_lang"]
+            "translation", "source_lang", fallback="French"
         ),
         target_lang=parser.get(
-            "translation", "target_lang", fallback=_DEFAULTS["target_lang"]
+            "translation", "target_lang", fallback="Russian"
         ),
-        debug=parser.getboolean("app", "debug", fallback=_DEFAULTS["debug"]),
+        debug=parser.getboolean("app", "debug", fallback=False),
     )

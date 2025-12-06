@@ -19,18 +19,26 @@ Usage:
 import logging
 from dataclasses import dataclass
 
-from lookup_vim.cache import create_cache
 from lookup_vim.cache.base import CacheBase
+from lookup_vim.cache.jsonl_cache import JSONLCache
+from lookup_vim.cache.memory import MemoryCache
 from lookup_vim.cli.inputs import FifoSource, InputSource, StdinSource
-from lookup_vim.config import Config, load_config
-from lookup_vim.services.conversation import ConversationService
-from lookup_vim.services.dictionary import DictionaryService
-from lookup_vim.services.lookup import LookupService
-from lookup_vim.services.translation import TranslationService
+from lookup_vim.config import CACHE_DIR, Config, load_config
 from lookup_vim.language.scrapers.lerobert import LeRobertScraper
 from lookup_vim.language.translators.openai_llm import OpenAILLM
 from lookup_vim.language.translators.prompts import Prompts
 from lookup_vim.language.translators.translator import Translator
+from lookup_vim.services.conversation import ConversationService
+from lookup_vim.services.dictionary import DictionaryService
+from lookup_vim.services.lookup import LookupService
+from lookup_vim.services.translation import TranslationService
+
+
+def create_cache(cache_type: str = "memory") -> CacheBase:
+    """Factory function to create cache instances"""
+    if cache_type == "jsonl":
+        return JSONLCache(cache_file=CACHE_DIR / "selections.jsonl")
+    return MemoryCache()
 
 
 @dataclass
@@ -59,18 +67,22 @@ class ServiceFactory:
 
     @property
     def source_lang(self) -> str:
+        assert self.config is not None
         return self.config.source_lang
 
     @property
     def target_lang(self) -> str:
+        assert self.config is not None
         return self.config.target_lang
 
     @property
     def fifo_path(self) -> str:
+        assert self.config is not None
         return self.config.fifo_path
 
     @property
     def debug(self) -> bool:
+        assert self.config is not None
         return self.config.debug
 
     def setup_logging(self) -> None:
@@ -120,7 +132,9 @@ class ServiceFactory:
             )
         return self._conversation_service
 
-    def create_conversation_service(self, system_prompt: str) -> ConversationService:
+    def create_conversation_service(
+        self, system_prompt: str
+    ) -> ConversationService:
         """Create a conversation service with a custom system prompt"""
         llm = OpenAILLM(model=self.model)
         return ConversationService(llm=llm, system_prompt=system_prompt)

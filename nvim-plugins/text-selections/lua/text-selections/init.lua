@@ -4,9 +4,11 @@ local M = {}
 local context = require('text-selections.context')
 local fifo = require('text-selections.fifo')
 
+-- Config with defaults (cache_dir must be provided in setup)
 M.config = {
-	selections_file = vim.fn.expand("~/projects/alexbond/robert-online/history/selections.jsonl"),
-	fifo_path = "/tmp/nvim-selection.fifo",
+	cache_dir = nil,
+	fifo_path = nil,
+	selections_file = nil,
 }
 
 -- Storage for highlight namespace and mode state
@@ -28,13 +30,26 @@ function M.teardown_word_selection()
 end
 
 function M.setup(opts)
-	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+	opts = opts or {}
 	
-	-- Ensure directory exists
-	local dir = vim.fn.fnamemodify(M.config.selections_file, ":h")
-	vim.fn.mkdir(dir, "p")
+	-- cache_dir is required
+	if not opts.cache_dir then
+		error("text-selections: cache_dir is required in setup()")
+	end
 	
-	-- Ensure file exists
+	local cache_dir = vim.fn.expand(opts.cache_dir)
+	
+	-- Derive paths from cache_dir
+	M.config = {
+		cache_dir = cache_dir,
+		fifo_path = cache_dir .. "/nvim-selection.fifo",
+		selections_file = cache_dir .. "/selections.jsonl",
+	}
+	
+	-- Ensure cache directory exists
+	vim.fn.mkdir(cache_dir, "p")
+	
+	-- Ensure selections file exists
 	if vim.fn.filereadable(M.config.selections_file) == 0 then
 		vim.fn.writefile({}, M.config.selections_file)
 	end

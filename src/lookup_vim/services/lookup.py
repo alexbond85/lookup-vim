@@ -115,8 +115,8 @@ class DictionaryHandler(LookupHandler):
         word = selection_data.selection.strip().rstrip(",.!?;:")
         try:
             result = self.dictionary_service.lookup_word(word)
-            # Only cache if result has definitions
-            if result.definitions:
+            # Only cache if result is WordResult with definitions
+            if isinstance(result, WordResult) and result.definitions:
                 simple_key = self.cache.make_simple_key(word)
                 self.cache.set(simple_key, result, selection_data)
             return result

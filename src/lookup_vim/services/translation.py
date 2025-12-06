@@ -4,8 +4,8 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from lookup_vim.models import TranslationResult
 from lookup_vim.language.translators.translator import Translator
+from lookup_vim.models import TranslationResult
 
 
 class TranslationOutput(BaseModel):
