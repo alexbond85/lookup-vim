@@ -5,7 +5,7 @@ Simple conversation management with LLM.
 
 import logging
 
-from lookup_vim.translation.translators.llm import StructuredOutputLLM
+from lookup_vim.language.translators.llm import StructuredOutputLLM
 
 logger = logging.getLogger(__name__)
 

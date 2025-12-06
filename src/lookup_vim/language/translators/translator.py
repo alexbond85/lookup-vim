@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from lookup_vim.translation.translators.llm import StructuredOutputLLM
-from lookup_vim.translation.translators.prompts import Prompts
+from lookup_vim.language.translators.llm import StructuredOutputLLM
+from lookup_vim.language.translators.prompts import Prompts
 
 
 class Translator:
@@ -25,7 +25,7 @@ class Translator:
 if __name__ == "__main__":
     from pydantic import BaseModel
 
-    from lookup_vim.translation.translators.openai_llm import OpenAILLM
+    from lookup_vim.language.translators.openai_llm import OpenAILLM
 
     class TranslationOutput(BaseModel):
         translation: str

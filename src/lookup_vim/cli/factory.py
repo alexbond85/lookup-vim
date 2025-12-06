@@ -27,10 +27,10 @@ from lookup_vim.services.conversation import ConversationService
 from lookup_vim.services.dictionary import DictionaryService
 from lookup_vim.services.lookup import LookupService
 from lookup_vim.services.translation import TranslationService
-from lookup_vim.translation.scrapers.lerobert import LeRobertScraper
-from lookup_vim.translation.translators.openai_llm import OpenAILLM
-from lookup_vim.translation.translators.prompts import Prompts
-from lookup_vim.translation.translators.translator import Translator
+from lookup_vim.language.scrapers.lerobert import LeRobertScraper
+from lookup_vim.language.translators.openai_llm import OpenAILLM
+from lookup_vim.language.translators.prompts import Prompts
+from lookup_vim.language.translators.translator import Translator
 
 
 @dataclass
@@ -115,12 +115,15 @@ class ServiceFactory:
     @property
     def conversation_service(self) -> ConversationService:
         if self._conversation_service is None:
-            llm = OpenAILLM(model=self.model)
-            self._conversation_service = ConversationService(
-                llm=llm,
-                system_prompt=self.prompts.conversation(),
+            self._conversation_service = self.create_conversation_service(
+                self.prompts.conversation()
             )
         return self._conversation_service
+
+    def create_conversation_service(self, system_prompt: str) -> ConversationService:
+        """Create a conversation service with a custom system prompt"""
+        llm = OpenAILLM(model=self.model)
+        return ConversationService(llm=llm, system_prompt=system_prompt)
 
     @property
     def lookup_service(self) -> LookupService:

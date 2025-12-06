@@ -17,15 +17,11 @@ from lookup_vim.models import (
 class JSONLCache(CacheBase):
     """JSONL-based persistent cache implementation with rich metadata"""
 
-    def __init__(self, cache_file: Path | None = None):
-        if cache_file is None:
-            # Default to history/selections.jsonl in project
-            cache_file = (
-                Path.home()
-                / "projects/alexbond/robert-online/history/selections.jsonl"
-            )
-        self.cache_file = cache_file
-        # Ensure directory exists
+    def __init__(self):
+        # .cache/selections.jsonl in project root
+        # Navigate from src/lookup_vim/cache/ to project root
+        project_root = Path(__file__).parent.parent.parent.parent
+        self.cache_file = project_root / ".cache" / "selections.jsonl"
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, Any] = {}
         self._load()
