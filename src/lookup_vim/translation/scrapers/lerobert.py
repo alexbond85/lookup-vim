@@ -25,8 +25,9 @@ import re
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from lookup_vim.constants import DEFAULT_TIMEOUT
 from lookup_vim.models import ConjugationResult, Definition, WordResult
+
+DEFAULT_TIMEOUT = 10
 
 logger = logging.getLogger(__name__)
 

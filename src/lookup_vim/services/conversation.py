@@ -5,8 +5,7 @@ Simple conversation management with LLM.
 
 import logging
 
-from lookup_vim.translation.translators.prompts import ConversationPrompt
-from lookup_vim.translation.translators.protocol import StructuredLLM
+from lookup_vim.translation.translators.llm import StructuredOutputLLM
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +19,9 @@ class ConversationService:
     - Reset conversation
     """
 
-    def __init__(
-        self,
-        llm: StructuredLLM,
-        prompt: ConversationPrompt,
-    ):
+    def __init__(self, llm: StructuredOutputLLM, system_prompt: str):
         self._llm = llm
-        self._prompt = prompt
+        self._system_prompt = system_prompt
         self._messages: list[dict[str, str]] = []
 
     def add_assistant_message(self, content: str):
@@ -36,7 +31,7 @@ class ConversationService:
         """
         if not self._messages:
             self._messages.append(
-                {"role": "system", "content": self._prompt.system_prompt}
+                {"role": "system", "content": self._system_prompt}
             )
         self._messages.append({"role": "assistant", "content": content})
 
@@ -57,7 +52,7 @@ class ConversationService:
 
         try:
             self.add_user_message(question)
-            response = self._llm.chat(self._messages)
+            response = self._llm.response(self._messages)
             if response:
                 self._messages.append(
                     {"role": "assistant", "content": response}

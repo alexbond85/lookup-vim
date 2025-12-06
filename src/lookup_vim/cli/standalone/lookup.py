@@ -35,7 +35,9 @@ def main():
     context_phrase: str = ""
 
     while True:
-        ctx_hint = f" [dim]({context_phrase[:20]}...)[/dim]" if context_phrase else ""
+        ctx_hint = (
+            f" [dim]({context_phrase[:20]}...)[/dim]" if context_phrase else ""
+        )
         console.print(f"[blue]lookup>{ctx_hint}[/blue] ", end="")
 
         try:
@@ -97,4 +99,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -1,47 +1,52 @@
-"""Generic translation provider"""
-
 from pydantic import BaseModel
 
-from lookup_vim.translation.translators.prompts import TranslationPrompts
-from lookup_vim.translation.translators.protocol import StructuredLLM
+from lookup_vim.translation.translators.llm import StructuredOutputLLM
+from lookup_vim.translation.translators.prompts import Prompts
 
 
 class Translator:
-    """Generic translation provider that works with any StructuredLLM"""
+    """Generic translation provider that works with any StructuredOutputLLM"""
 
-    def __init__(
-        self,
-        structured_llm: StructuredLLM,
-        prompts: TranslationPrompts,
-    ):
-        """
-        Initialize the translator
-
-        Args:
-            structured_llm: StructuredLLM implementation
-            prompts: Translation prompts handler
-        """
-        self.structured_llm = structured_llm
+    def __init__(self, llm: StructuredOutputLLM, prompts: Prompts):
+        self.llm = llm
         self.prompts = prompts
 
     def translate(
         self, query: str, context: str | None, output_model: type[BaseModel]
     ) -> BaseModel:
-        """
-        Translate a word/expression between the configured languages
-
-        Args:
-            query: The word or expression to translate
-            context: Optional context (phrase/paragraph) for the query
-            output_model: Pydantic model for structured output
-
-        Returns:
-            Parsed structured output matching the output_model
-        """
-        user_prompt = self.prompts.user_prompt(query, context)
-
-        return self.structured_llm.generate(
-            user_prompt=user_prompt,
-            system_prompt=self.prompts.system_prompt,
+        """Translate a word/expression between the configured languages"""
+        return self.llm.structured_response(
+            user_prompt=self.prompts.user(query, context),
+            system_prompt=self.prompts.system(),
             output_model=output_model,
         )
+
+
+if __name__ == "__main__":
+    from pydantic import BaseModel
+
+    from lookup_vim.translation.translators.openai_llm import OpenAILLM
+
+    class TranslationOutput(BaseModel):
+        translation: str
+        explanation: str
+
+    llm = OpenAILLM()
+    prompts = Prompts(source_lang="français", target_lang="anglais")
+    translator = Translator(llm, prompts)
+
+    # Test without context
+    result = translator.translate(
+        query="bouleversé",
+        context=None,
+        output_model=TranslationOutput,
+    )
+    print(f"Without context: {result}")
+
+    # Test with context
+    result = translator.translate(
+        query="bouleversé",
+        context="Il était complètement bouleversé par la nouvelle.",
+        output_model=TranslationOutput,
+    )
+    print(f"With context: {result}")

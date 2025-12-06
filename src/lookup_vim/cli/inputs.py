@@ -200,4 +200,3 @@ class InputMultiplexer:
             source.close()
         self._sources.clear()
         self._fd_to_source.clear()
-

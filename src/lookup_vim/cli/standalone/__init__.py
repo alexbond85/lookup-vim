@@ -8,4 +8,3 @@ Usage:
     python -m lookup_vim.cli.standalone.conversation
     python -m lookup_vim.cli.standalone.lookup
 """
-

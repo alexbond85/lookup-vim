@@ -26,14 +26,18 @@ def main():
         f"[dim]Language learning assistant ({factory.source_lang} → {factory.target_lang})[/dim]\n"
     )
     console.print("[dim]Commands:[/dim]")
-    console.print("[dim]  seed:<text>  - Set initial context (simulates lookup result)[/dim]")
+    console.print(
+        "[dim]  seed:<text>  - Set initial context (simulates lookup result)[/dim]"
+    )
     console.print("[dim]  reset       - Clear conversation[/dim]")
     console.print("[dim]  history     - Show message history[/dim]")
     console.print("[dim]  q/quit      - Exit[/dim]\n")
 
     while True:
         status = (
-            "[green]active[/green]" if service.has_conversation() else "[dim]no context[/dim]"
+            "[green]active[/green]"
+            if service.has_conversation()
+            else "[dim]no context[/dim]"
         )
         console.print(f"[blue]>[/blue] [{status}] ", end="")
 
@@ -54,7 +58,9 @@ def main():
             seed_text = line[5:].strip()
             service.reset()
             service.add_assistant_message(seed_text)
-            console.print(f"[dim]Context seeded with: {seed_text[:50]}...[/dim]\n")
+            console.print(
+                f"[dim]Context seeded with: {seed_text[:50]}...[/dim]\n"
+            )
             continue
 
         # Reset conversation
@@ -75,9 +81,11 @@ def main():
                         if len(msg["content"]) > 100
                         else msg["content"]
                     )
-                    style = {"system": "yellow", "assistant": "cyan", "user": "green"}.get(
-                        role, "white"
-                    )
+                    style = {
+                        "system": "yellow",
+                        "assistant": "cyan",
+                        "user": "green",
+                    }.get(role, "white")
                     console.print(f"[{style}]{role}:[/{style}] {content}")
                 console.print()
             continue
@@ -111,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

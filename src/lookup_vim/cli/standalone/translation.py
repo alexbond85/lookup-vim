@@ -20,8 +20,12 @@ def main():
     service = factory.translation_service
 
     console.print("[cyan]🌐 Translation[/cyan]")
-    console.print(f"[dim]{factory.source_lang} → {factory.target_lang}[/dim]\n")
-    console.print("[dim]Enter text to translate. Use 'c:' prefix to add context.[/dim]")
+    console.print(
+        f"[dim]{factory.source_lang} → {factory.target_lang}[/dim]\n"
+    )
+    console.print(
+        "[dim]Enter text to translate. Use 'c:' prefix to add context.[/dim]"
+    )
     console.print("[dim]Example: c:La phrase complète. mot[/dim]\n")
 
     context: str | None = None
@@ -67,4 +71,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

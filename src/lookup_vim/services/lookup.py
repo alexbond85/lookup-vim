@@ -200,16 +200,6 @@ class LookupService:
         self._build_chain()
         return self
 
-    @property
-    def source_lang(self) -> str:
-        """Source language from translation service"""
-        return self._translation_service.provider.prompts.source_lang
-
-    @property
-    def target_lang(self) -> str:
-        """Target language from translation service"""
-        return self._translation_service.provider.prompts.target_lang
-
     def _build_chain(self) -> None:
         """Build handler chain: Cache → [Dictionary] → Translation"""
         cache_handler = CacheHandler(self._cache)
