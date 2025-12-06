@@ -3,7 +3,7 @@ name = "lookup-vim"
 version = "0.1.0"
 description = "A CLI tool for reading foreign language books with integrated dictionary lookups and translations, seamlessly integrated with Vim"
 authors = [
-    {name = "Alex Bond"}
+    {name = "Alexander Bondarenko"}
 ]
 readme = "README.md"
 requires-python = ">=3.11"
