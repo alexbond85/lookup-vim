@@ -65,7 +65,7 @@ class LookupApp:
     def start(self):
         """Start the main loop"""
         source_names = [s.name for s in self._inputs.sources]
-        console.print("[blue]Robert Lookup[/blue]\n")
+        console.print("[blue]Lookup[/blue]\n")
         console.print(f"[dim]Listening: {', '.join(source_names)}[/dim]\n")
 
         try:

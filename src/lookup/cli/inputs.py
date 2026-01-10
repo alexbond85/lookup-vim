@@ -89,7 +89,7 @@ class FifoSource:
         self._file: IO[str] | None = None
 
     def _ensure_fifo(self):
-        """Create FIFO if it doesn't exist"""
+        """Create FIFO if it doesn't exist (fallback - Neovim normally creates it)"""
         if not os.path.exists(self.path):
             os.mkfifo(self.path)
             logger.info(f"Created FIFO at {self.path}")

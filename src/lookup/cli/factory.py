@@ -23,7 +23,7 @@ from lookup.cache.base import CacheBase
 from lookup.cache.jsonl import JSONLCache
 from lookup.cache.memory import MemoryCache
 from lookup.cli.inputs import FifoSource, InputSource, StdinSource
-from lookup.config import CACHE_DIR, Config, load_config
+from lookup.config import Config, load_config
 from lookup.conversation.service import ConversationService
 from lookup.dictionary.scraper import LeRobertScraper
 from lookup.dictionary.service import DictionaryService
@@ -33,10 +33,10 @@ from lookup.translation.prompts import Prompts
 from lookup.translation.service import TranslationService
 
 
-def create_cache(cache_type: str = "memory") -> CacheBase:
+def create_cache(cache_type: str, config: Config) -> CacheBase:
     """Factory function to create cache instances"""
     if cache_type == "jsonl":
-        return JSONLCache(cache_file=CACHE_DIR / "selections.jsonl")
+        return JSONLCache(cache_file=config.selections_file)
     return MemoryCache()
 
 
@@ -77,7 +77,7 @@ class ServiceFactory:
     @property
     def fifo_path(self) -> str:
         assert self.config is not None
-        return self.config.fifo_path
+        return str(self.config.fifo_path)
 
     @property
     def debug(self) -> bool:
@@ -105,7 +105,8 @@ class ServiceFactory:
     @property
     def cache(self) -> CacheBase:
         if self._cache is None:
-            self._cache = create_cache(self.cache_type)
+            assert self.config is not None
+            self._cache = create_cache(self.cache_type, self.config)
         return self._cache
 
     @property

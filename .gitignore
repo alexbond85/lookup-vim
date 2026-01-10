@@ -214,3 +214,4 @@ tmp/
 
 # Local config (copy from config.ini.example)
 config.ini
+tmp/
