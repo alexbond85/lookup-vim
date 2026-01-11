@@ -6,9 +6,19 @@ Includes a word scraper from the Robert online dictionary for learning French.
 
 ## How It Works
 
-https://github.com/user-attachments/assets/navigate_1.mov
 
-https://github.com/user-attachments/assets/navigate_2.mov
+
+https://github.com/user-attachments/assets/15123fe3-e686-47e6-a558-30d8bbf004e4
+
+
+
+https://github.com/user-attachments/assets/b3642ac6-cf01-4868-9880-f0a555fedb8f
+
+
+
+https://github.com/user-attachments/assets/09685383-cd06-4cd6-b8c8-0f38f8e852b1
+
+
 
 Navigate the text using vim commands, select a word or expression in visual mode, then press `,,` to trigger translation in the chat client on the right.
 
