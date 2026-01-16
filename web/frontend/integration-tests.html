@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nvim-lookup Integration Tests</title>
+
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+
+    <style>
+        :root {
+            --bg: #ffffff;
+            --fg: #1a1a1a;
+            --border: #e5e7eb;
+            --accent: #2563eb;
+            --success: #059669;
+            --error: #dc2626;
+            --panel-bg: #f9fafb;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+        }
+
+        /* Split view layout */
+        #split-container {
+            display: grid;
+            grid-template-columns: 50% 50%;
+            height: 100vh;
+        }
+
+        /* Left side: App under test */
+        #app-pane {
+            border-right: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #app-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: white;
+        }
+
+        #app-toolbar button {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #app-toolbar button.translate-btn {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        #app-toolbar button.translate-btn:hover {
+            background: #1d4ed8;
+        }
+
+        #filename {
+            flex: 1;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        #vim-mode {
+            color: #6b7280;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        #app-content {
+            display: grid;
+            grid-template-columns: 60% 40%;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #editor-pane {
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .CodeMirror {
+            height: 100%;
+            font-size: 14px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+
+        .highlight-mark {
+            background: rgba(245, 158, 11, 0.2) !important;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
+        }
+
+        #chat-pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--panel-bg);
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            background: white;
+            border: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .message.translation {
+            border-left: 4px solid var(--accent);
+        }
+
+        .message h3 {
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+
+        .message .translation-text {
+            color: var(--success);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .message .explanations {
+            color: #4b5563;
+            line-height: 1.5;
+        }
+
+        .context-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .context-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            background: white;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .context-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        #chat-input-container {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+            background: white;
+        }
+
+        #chat-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        /* Right side: Test results */
+        #test-pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #fafafa;
+        }
+
+        #test-header {
+            padding: 16px 20px;
+            background: #1a1a1a;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #test-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        #run-tests-btn {
+            padding: 8px 20px;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        #run-tests-btn:hover {
+            background: #047857;
+        }
+
+        #run-tests-btn:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+
+        #test-summary {
+            padding: 12px 20px;
+            background: #e5e7eb;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        #test-summary.all-passed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        #test-summary.has-failures {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        #test-results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+        }
+
+        .test-result {
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            background: white;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .test-result.passed {
+            border-left: 4px solid var(--success);
+        }
+
+        .test-result.failed {
+            border-left: 4px solid var(--error);
+            background: #fef2f2;
+        }
+
+        .test-icon {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .test-result.passed .test-icon {
+            color: var(--success);
+        }
+
+        .test-result.failed .test-icon {
+            color: var(--error);
+        }
+
+        .test-name {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .test-error {
+            width: 100%;
+            margin-top: 8px;
+            padding: 10px;
+            background: #fee2e2;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #991b1b;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .running {
+            padding: 20px;
+            text-align: center;
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9ca3af;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Hide theme selector for tests */
+        #theme-select { display: none; }
+        #settings { display: none; }
+    </style>
+</head>
+<body>
+    <div id="split-container">
+        <!-- Left: App under test -->
+        <div id="app-pane">
+            <div id="app-toolbar">
+                <button id="open-file">Open File</button>
+                <button id="translate-btn" class="translate-btn">Translate Selection</button>
+                <select id="theme-select">
+                    <option value="default">Default</option>
+                </select>
+                <button id="settings">Settings</button>
+                <span id="filename">test-document.txt</span>
+                <span id="vim-mode">-- NORMAL --</span>
+            </div>
+
+            <div id="app-content">
+                <div id="editor-pane">
+                    <textarea id="editor">Bonjour monsieur. Comment allez-vous?
+
+Je suis tres content de vous voir. C'est magnifique!
+
+Le petit chat noir dort sur le canape.</textarea>
+                </div>
+
+                <div id="chat-pane">
+                    <div id="chat-messages">
+                        <div class="empty-state">
+                            Select text and click "Translate Selection"
+                        </div>
+                    </div>
+                    <div id="chat-input-container">
+                        <input type="text" id="chat-input" placeholder="Ask a follow-up question..." disabled />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Test results -->
+        <div id="test-pane">
+            <div id="test-header">
+                <h1>Integration Tests</h1>
+                <button id="run-tests-btn" onclick="runTests()">Run All Tests</button>
+            </div>
+            <div id="test-summary"></div>
+            <div id="test-results">
+                <div class="empty-state">
+                    Click "Run All Tests" to start
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CodeMirror -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/vim.min.js"></script>
+
+    <!-- App code -->
+    <script src="/static/context-extractor.js"></script>
+    <script src="/static/app.js"></script>
+
+    <!-- Test framework -->
+    <script src="/static/test-harness.js"></script>
+    <script src="/static/integration-tests.js"></script>
+
+    <script>
+        // Run tests function
+        async function runTests() {
+            const btn = document.getElementById('run-tests-btn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+
+            // Clear previous results
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('test-summary').innerHTML = '';
+            document.getElementById('test-summary').className = 'test-summary';
+
+            try {
+                // Run tests (registerTests is called inside runAllTests)
+                const results = await runAllTests();
+                console.log('Final results:', results);
+            } catch (error) {
+                console.error('Test run error:', error);
+                document.getElementById('test-results').innerHTML =
+                    '<div class="test-result failed"><span class="test-icon">!</span>' +
+                    '<span class="test-name">Test runner error</span>' +
+                    '<pre class="test-error">' + error.message + '</pre></div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run All Tests';
+            }
+        }
+
+        // Auto-run tests on page load (optional - comment out if not desired)
+        // window.addEventListener('load', () => setTimeout(runTests, 500));
+    </script>
+</body>
+</html>

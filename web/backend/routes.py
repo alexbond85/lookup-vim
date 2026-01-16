@@ -1,0 +1,142 @@
+from fastapi import APIRouter, Header, HTTPException
+from web.backend.models import (
+    ConversationRequest,
+    HistoryResponse,
+    LookupRequest,
+)
+from web.backend.session import SessionManager
+from lookup.domain import SelectionData
+
+router = APIRouter(prefix="/api")
+sessions = SessionManager()
+
+
+@router.post("/lookup")
+async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
+    """Main translation endpoint - translates selection only (token-optimized)"""
+    print(f"DEBUG /api/lookup received:")
+    print(f"  selection: {request.selection!r}")
+    print(f"  phrase: {request.phrase!r}")
+    print(f"  paragraph: {request.paragraph!r}")
+    print(f"  file: {request.file!r}")
+
+    selection_data = SelectionData(
+        selection=request.selection,
+        phrase=request.phrase or "",
+        paragraph=request.paragraph or "",
+        file=request.file or ""
+    )
+
+    # Use existing LookupService
+    result = sessions.factory.lookup_service.lookup(selection_data)
+
+    # Update session - store phrase and paragraph for later
+    session = sessions.get_or_create(x_session_id)
+    session.current_phrase = request.phrase
+    session.current_paragraph = request.paragraph
+    session.add_translation(request.selection, result)
+
+    # Determine if we should show context buttons
+    has_phrase = bool(
+        request.phrase and
+        request.phrase.strip() != request.selection.strip()
+    )
+    has_paragraph = bool(
+        request.paragraph and
+        request.paragraph.strip() != request.selection.strip() and
+        request.paragraph.strip() != request.phrase.strip()
+    )
+
+    print(f"DEBUG context flags:")
+    print(f"  has_phrase: {has_phrase}")
+    print(f"  has_paragraph: {has_paragraph}")
+
+    # Return chat messages with context info
+    return {
+        "messages": session.messages,
+        "has_phrase": has_phrase,
+        "has_paragraph": has_paragraph
+    }
+
+
+@router.post("/lookup/phrase")
+async def lookup_phrase(x_session_id: str = Header(...)):
+    """Translate the stored phrase/sentence (option 1)"""
+    session = sessions.get_or_create(x_session_id)
+
+    if not session.current_phrase:
+        raise HTTPException(400, "No phrase in context")
+
+    # NEW lookup with phrase as selection
+    selection_data = SelectionData(
+        selection=session.current_phrase,
+        phrase="",
+        paragraph="",
+        file=""
+    )
+
+    result = sessions.factory.lookup_service.lookup(selection_data)
+    session.add_translation(session.current_phrase, result)
+
+    return {"messages": session.messages}
+
+
+@router.post("/lookup/paragraph")
+async def lookup_paragraph(x_session_id: str = Header(...)):
+    """Translate the stored paragraph (option 2)"""
+    session = sessions.get_or_create(x_session_id)
+
+    if not session.current_paragraph:
+        raise HTTPException(400, "No paragraph in context")
+
+    # NEW lookup with paragraph as selection
+    selection_data = SelectionData(
+        selection=session.current_paragraph,
+        phrase="",
+        paragraph="",
+        file=""
+    )
+
+    result = sessions.factory.lookup_service.lookup(selection_data)
+    session.add_translation(session.current_paragraph, result)
+
+    return {"messages": session.messages}
+
+
+@router.post("/conversation")
+async def conversation(
+    request: ConversationRequest,
+    x_session_id: str = Header(...)
+):
+    """Follow-up questions"""
+    session = sessions.get_or_create(x_session_id)
+    answer = session.conversation_service.generate_response(request.question)
+    session.add_conversation(request.question, answer or "")
+
+    return {"messages": session.messages}
+
+
+@router.get("/history")
+async def get_history(file: str | None = None):
+    """Get cached selections from JSONL"""
+    cache = sessions.factory.cache
+    entries = list(cache._cache.values())
+
+    if file:
+        entries = [
+            e for e in entries
+            if e.get("context", {}).get("file", "").endswith(file)
+        ]
+
+    return {"entries": entries}
+
+
+@router.get("/config")
+async def get_config():
+    """Return current configuration"""
+    config = sessions.factory.config
+    return {
+        "source_lang": sessions.factory.source_lang,
+        "target_lang": sessions.factory.target_lang,
+        "cache_dir": str(config.cache_dir) if config else ""
+    }
