@@ -161,30 +161,16 @@ function updateSendButton() {
     const input = document.getElementById('chat-input');
     const hasText = input.value.trim().length > 0;
 
-    if (inputMode === 'followup' && !hasText) {
-        // Follow-up mode with empty input
-        sendBtn.textContent = 'Send';
-        sendBtn.classList.add('followup-mode');
-        sendBtn.disabled = true;
-    } else if (inputMode === 'followup' && hasText) {
-        // Follow-up mode with text
-        sendBtn.textContent = 'Send';
-        sendBtn.classList.add('followup-mode');
-        sendBtn.disabled = false;
-    } else {
-        // Translate mode (selection or free text)
-        sendBtn.textContent = 'Translate';
-        sendBtn.classList.remove('followup-mode');
-        sendBtn.disabled = !hasText;
-    }
+    // Always show "Send", just toggle disabled state
+    sendBtn.disabled = !hasText;
 }
 
 // Auto-resize textarea to fit content
 function autoResizeTextarea(textarea) {
     // Reset height to auto to get correct scrollHeight
     textarea.style.height = 'auto';
-    // Set height to scrollHeight, capped by max-height in CSS
-    const newHeight = Math.max(48, Math.min(textarea.scrollHeight, 200));
+    // Set height to scrollHeight, capped by max-height in CSS (38px min, 150px max)
+    const newHeight = Math.max(38, Math.min(textarea.scrollHeight, 150));
     textarea.style.height = newHeight + 'px';
 }
 
