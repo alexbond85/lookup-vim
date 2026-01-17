@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel
 from web.backend.models import (
     ConversationRequest,
     HistoryResponse,
@@ -9,6 +10,11 @@ from lookup.domain import SelectionData
 
 router = APIRouter(prefix="/api")
 sessions = SessionManager()
+
+
+class ConfigUpdateRequest(BaseModel):
+    source_lang: str
+    target_lang: str
 
 
 @router.post("/lookup")
@@ -164,4 +170,49 @@ async def get_config():
         "source_lang": sessions.factory.source_lang,
         "target_lang": sessions.factory.target_lang,
         "cache_dir": str(config.cache_dir) if config else ""
+    }
+
+
+@router.post("/config")
+async def update_config(request: ConfigUpdateRequest):
+    """Update language configuration"""
+    import configparser
+    from pathlib import Path
+
+    # Validate languages
+    valid_languages = ["Russian", "German", "French", "Spanish", "English"]
+    if request.source_lang not in valid_languages:
+        raise HTTPException(400, f"Invalid source language: {request.source_lang}")
+    if request.target_lang not in valid_languages:
+        raise HTTPException(400, f"Invalid target language: {request.target_lang}")
+    if request.source_lang == request.target_lang:
+        raise HTTPException(400, "Source and target languages must be different")
+
+    # Find config file path
+    config_path = Path(__file__).parent.parent.parent / "config.ini"
+
+    # Read existing config
+    parser = configparser.ConfigParser()
+    if config_path.exists():
+        parser.read(config_path)
+
+    # Ensure translation section exists
+    if "translation" not in parser:
+        parser["translation"] = {}
+
+    # Update languages
+    parser["translation"]["source_lang"] = request.source_lang
+    parser["translation"]["target_lang"] = request.target_lang
+
+    # Write back
+    with open(config_path, "w") as f:
+        parser.write(f)
+
+    # Reload the factory with new config
+    sessions.reload_factory()
+
+    return {
+        "source_lang": request.source_lang,
+        "target_lang": request.target_lang,
+        "message": "Configuration updated successfully"
     }

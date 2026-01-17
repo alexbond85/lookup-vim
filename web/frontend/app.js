@@ -5,11 +5,15 @@ const SESSION_ID = crypto.randomUUID();
 let currentFile = null;
 let highlights = [];
 let editor = null;
+let currentMessages = []; // Store current messages for conversation
 
 // Initialize CodeMirror when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     initEditor();
     setupEventListeners();
+    setupResizeHandle();
+    setupMenu();
+    setupSettingsModal();
 });
 
 function initEditor() {
@@ -17,6 +21,13 @@ function initEditor() {
 
     // Load saved theme
     const savedTheme = localStorage.getItem('editorTheme') || 'default';
+
+    // Load saved split position
+    const savedSplit = localStorage.getItem('splitPosition') || '65';
+    const editorPane = document.getElementById('editor-pane');
+    const chatPane = document.getElementById('chat-pane');
+    editorPane.style.flex = `0 0 ${savedSplit}%`;
+    chatPane.style.flex = '1';
 
     editor = CodeMirror.fromTextArea(textarea, {
         mode: 'markdown',
@@ -26,13 +37,13 @@ function initEditor() {
         theme: savedTheme
     });
 
-    // Set theme select to saved value
-    document.getElementById('theme-select').value = savedTheme;
+    // Update theme options to show active
+    updateThemeOptions(savedTheme);
 
     // Track vim mode changes
     editor.on('vim-mode-change', function(e) {
         const mode = e.mode || 'normal';
-        document.getElementById('vim-mode').textContent = '-- ' + mode.toUpperCase() + ' --';
+        document.getElementById('vim-mode').textContent = mode.toUpperCase();
     });
 
     // Set up custom translate command in vim - just type :t in vim!
@@ -52,9 +63,80 @@ function initEditor() {
     console.log('Editor initialized with vim mode and theme:', savedTheme);
 }
 
-function setupEventListeners() {
-    // Open file button
-    document.getElementById('open-file').addEventListener('click', function() {
+function setupResizeHandle() {
+    const handle = document.getElementById('resize-handle');
+    const container = document.getElementById('main-container');
+    const editorPane = document.getElementById('editor-pane');
+    const chatPane = document.getElementById('chat-pane');
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    handle.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = editorPane.offsetWidth;
+
+        document.body.classList.add('resizing');
+        handle.classList.add('dragging');
+
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+
+        const containerWidth = container.offsetWidth;
+        const dx = e.clientX - startX;
+        const newWidth = startWidth + dx;
+
+        // Calculate percentage (min 20%, max 80%)
+        let percentage = (newWidth / containerWidth) * 100;
+        percentage = Math.max(20, Math.min(80, percentage));
+
+        editorPane.style.flex = `0 0 ${percentage}%`;
+
+        // Refresh CodeMirror to handle resize
+        if (editor) {
+            editor.refresh();
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isDragging) {
+            isDragging = false;
+            document.body.classList.remove('resizing');
+            handle.classList.remove('dragging');
+
+            // Save position
+            const containerWidth = container.offsetWidth;
+            const percentage = (editorPane.offsetWidth / containerWidth) * 100;
+            localStorage.setItem('splitPosition', percentage.toFixed(1));
+        }
+    });
+}
+
+function setupMenu() {
+    const menuBtn = document.getElementById('menu-btn');
+    const menuDropdown = document.getElementById('menu-dropdown');
+
+    // Toggle menu
+    menuBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        menuDropdown.classList.toggle('open');
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+            menuDropdown.classList.remove('open');
+        }
+    });
+
+    // Open file menu item
+    document.getElementById('menu-open-file').addEventListener('click', function() {
+        menuDropdown.classList.remove('open');
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.txt,.md';
@@ -62,6 +144,157 @@ function setupEventListeners() {
         input.click();
     });
 
+    // Theme options
+    document.querySelectorAll('.theme-option').forEach(function(option) {
+        option.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const theme = this.dataset.theme;
+            editor.setOption('theme', theme);
+            localStorage.setItem('editorTheme', theme);
+            updateThemeOptions(theme);
+            menuDropdown.classList.remove('open');
+            console.log('Theme changed to:', theme);
+        });
+    });
+
+    // Settings menu item
+    document.getElementById('menu-settings').addEventListener('click', function() {
+        menuDropdown.classList.remove('open');
+        openSettingsModal();
+    });
+}
+
+function setupSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    const sourceLang = document.getElementById('source-lang');
+    const targetLang = document.getElementById('target-lang');
+    const errorEl = document.getElementById('lang-error');
+    const saveBtn = document.getElementById('settings-save');
+
+    // Close handlers
+    document.getElementById('settings-close').addEventListener('click', closeSettingsModal);
+    document.getElementById('settings-cancel').addEventListener('click', closeSettingsModal);
+
+    // Close on backdrop click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeSettingsModal();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('open')) {
+            closeSettingsModal();
+        }
+    });
+
+    // Validate on change
+    sourceLang.addEventListener('change', validateLanguages);
+    targetLang.addEventListener('change', validateLanguages);
+
+    // Save handler
+    saveBtn.addEventListener('click', saveSettings);
+}
+
+function validateLanguages() {
+    const sourceLang = document.getElementById('source-lang').value;
+    const targetLang = document.getElementById('target-lang').value;
+    const errorEl = document.getElementById('lang-error');
+    const saveBtn = document.getElementById('settings-save');
+
+    if (sourceLang === targetLang) {
+        errorEl.textContent = 'Source and target languages must be different';
+        saveBtn.disabled = true;
+        return false;
+    } else {
+        errorEl.textContent = '';
+        saveBtn.disabled = false;
+        return true;
+    }
+}
+
+function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+
+    // Load current settings
+    fetch('/api/config')
+        .then(r => r.json())
+        .then(config => {
+            document.getElementById('source-lang').value = config.source_lang;
+            document.getElementById('target-lang').value = config.target_lang;
+            validateLanguages();
+            modal.classList.add('open');
+        })
+        .catch(err => {
+            console.error('Settings error:', err);
+            alert('Error loading settings');
+        });
+}
+
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.remove('open');
+}
+
+async function saveSettings() {
+    if (!validateLanguages()) return;
+
+    const sourceLang = document.getElementById('source-lang').value;
+    const targetLang = document.getElementById('target-lang').value;
+    const saveBtn = document.getElementById('settings-save');
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/api/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                source_lang: sourceLang,
+                target_lang: targetLang
+            })
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || 'Failed to save settings');
+        }
+
+        closeSettingsModal();
+        console.log('Settings saved:', sourceLang, '->', targetLang);
+    } catch (error) {
+        console.error('Save settings error:', error);
+        document.getElementById('lang-error').textContent = error.message;
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+    }
+}
+
+// Dark themes list
+const DARK_THEMES = ['monokai', 'dracula', 'solarized dark', 'material'];
+
+function updateThemeOptions(activeTheme) {
+    document.querySelectorAll('.theme-option').forEach(function(option) {
+        if (option.dataset.theme === activeTheme) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+    });
+
+    // Apply dark theme class to body for chat pane styling
+    if (DARK_THEMES.includes(activeTheme)) {
+        document.body.classList.add('dark-theme');
+    } else {
+        document.body.classList.remove('dark-theme');
+    }
+}
+
+function setupEventListeners() {
     // Translate button
     document.getElementById('translate-btn').addEventListener('click', function() {
         handleLookup();
@@ -100,30 +333,6 @@ function setupEventListeners() {
             e.preventDefault();
             handleConversation();
         }
-    });
-
-    // Theme selector
-    document.getElementById('theme-select').addEventListener('change', function(e) {
-        const theme = e.target.value;
-        editor.setOption('theme', theme);
-        localStorage.setItem('editorTheme', theme);
-        console.log('Theme changed to:', theme);
-    });
-
-    // Settings button
-    document.getElementById('settings').addEventListener('click', function() {
-        fetch('/api/config')
-            .then(r => r.json())
-            .then(config => {
-                alert('Current settings:\n\n' +
-                      'Source: ' + config.source_lang + '\n' +
-                      'Target: ' + config.target_lang + '\n\n' +
-                      'To change, edit config.ini file');
-            })
-            .catch(err => {
-                console.error('Settings error:', err);
-                alert('Error loading settings');
-            });
     });
 }
 
@@ -201,8 +410,8 @@ async function handleLookup() {
 
     // Show loading state
     const btn = document.getElementById('translate-btn');
-    const originalText = btn.textContent;
-    btn.textContent = 'Translating...';
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Translating...';
     btn.disabled = true;
 
     // Get context - use the selection cursor position, not current cursor
@@ -255,6 +464,9 @@ async function handleLookup() {
 
         highlights.push({ from, to, selection });
 
+        // Store messages for conversation
+        currentMessages = data.messages;
+
         // Display with context buttons
         displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph);
 
@@ -267,15 +479,31 @@ async function handleLookup() {
         alert('Translation error: ' + error.message + '\n\nCheck console for details');
     } finally {
         // Reset button
-        btn.textContent = originalText;
+        btn.innerHTML = originalText;
         btn.disabled = false;
     }
 }
 
 // getParagraphContext removed - using extractParagraphFromEditor from context-extractor.js
 
+function disableContextButtons() {
+    document.querySelectorAll('.context-btn').forEach(function(btn) {
+        btn.disabled = true;
+        btn.classList.add('loading');
+    });
+}
+
+function enableContextButtons() {
+    document.querySelectorAll('.context-btn').forEach(function(btn) {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+    });
+}
+
 async function translatePhrase() {
     console.log('Translating phrase...');
+
+    disableContextButtons();
 
     try {
         const response = await fetch('/api/lookup/phrase', {
@@ -291,15 +519,19 @@ async function translatePhrase() {
         }
 
         const data = await response.json();
+        currentMessages = data.messages;
         displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
     } catch (error) {
         console.error('Phrase translation error:', error);
         alert('Error: ' + error.message);
+        enableContextButtons();
     }
 }
 
 async function translateParagraph() {
     console.log('Translating paragraph...');
+
+    disableContextButtons();
 
     try {
         const response = await fetch('/api/lookup/paragraph', {
@@ -315,11 +547,27 @@ async function translateParagraph() {
         }
 
         const data = await response.json();
+        currentMessages = data.messages;
         displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
     } catch (error) {
         console.error('Paragraph translation error:', error);
         alert('Error: ' + error.message);
+        enableContextButtons();
     }
+}
+
+function renderMarkdown(text) {
+    // Use marked library if available, otherwise fallback to basic formatting
+    if (typeof marked !== 'undefined') {
+        // Configure marked for safe rendering
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+        return marked.parse(text);
+    }
+    // Fallback: just escape and convert newlines
+    return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
 function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
@@ -338,9 +586,11 @@ function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
 
         if (msg.type === 'translation') {
             div.innerHTML =
-                '<h3>' + escapeHtml(msg.data.query) + '</h3>' +
+                '<div class="query-header">' +
+                    '<span class="query-text">' + escapeHtml(msg.data.query) + '</span>' +
+                '</div>' +
                 '<div class="translation-text">' + escapeHtml(msg.data.translation) + '</div>' +
-                '<div class="explanations">' + formatExplanations(msg.data.explanations) + '</div>';
+                '<div class="explanations">' + renderMarkdown(msg.data.explanations) + '</div>';
 
             console.log('Message index:', idx, 'Last index:', messages.length - 1);
             console.log('Should show buttons:', idx === messages.length - 1 && (hasPhrase || hasParagraph));
@@ -355,7 +605,7 @@ function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
                     console.log('Adding phrase button');
                     const btn1 = document.createElement('button');
                     btn1.className = 'context-btn';
-                    btn1.textContent = '1. Translate full sentence';
+                    btn1.textContent = 'Translate full sentence';
                     btn1.onclick = translatePhrase;
                     actions.appendChild(btn1);
                 }
@@ -364,7 +614,7 @@ function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
                     console.log('Adding paragraph button');
                     const btn2 = document.createElement('button');
                     btn2.className = 'context-btn';
-                    btn2.textContent = '2. Translate full paragraph';
+                    btn2.textContent = 'Translate full paragraph';
                     btn2.onclick = translateParagraph;
                     actions.appendChild(btn2);
                 }
@@ -373,9 +623,13 @@ function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
                 console.log('Buttons appended to div');
             }
         } else if (msg.type === 'question') {
-            div.innerHTML = '<strong>You:</strong> ' + escapeHtml(msg.content);
+            div.innerHTML =
+                '<div class="message-header">You</div>' +
+                '<div class="message-content">' + escapeHtml(msg.content) + '</div>';
         } else if (msg.type === 'answer') {
-            div.innerHTML = '<strong>Assistant:</strong> ' + escapeHtml(msg.content);
+            div.innerHTML =
+                '<div class="message-header">Assistant</div>' +
+                '<div class="message-content">' + renderMarkdown(msg.content) + '</div>';
         }
 
         container.appendChild(div);
@@ -389,6 +643,48 @@ function displayMessages(messages) {
     displayMessagesWithContext(messages, false, false);
 }
 
+function appendQuestionMessage(question) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'message question';
+    div.innerHTML =
+        '<div class="message-header">You</div>' +
+        '<div class="message-content">' + escapeHtml(question) + '</div>';
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function appendLoadingMessage() {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'message loading';
+    div.id = 'loading-message';
+    div.innerHTML =
+        '<div class="message-header">Assistant</div>' +
+        '<div class="loading-dots"><span></span><span></span><span></span></div>';
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+}
+
+function removeLoadingMessage() {
+    const loading = document.getElementById('loading-message');
+    if (loading) {
+        loading.remove();
+    }
+}
+
+function appendAnswerMessage(answer) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'message answer';
+    div.innerHTML =
+        '<div class="message-header">Assistant</div>' +
+        '<div class="message-content">' + renderMarkdown(answer) + '</div>';
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
 async function handleConversation() {
     const input = document.getElementById('chat-input');
     const question = input.value.trim();
@@ -396,6 +692,18 @@ async function handleConversation() {
     if (!question) return;
 
     console.log('Asking question:', question);
+
+    // Clear input immediately
+    input.value = '';
+
+    // Show question immediately
+    appendQuestionMessage(question);
+
+    // Show loading indicator
+    appendLoadingMessage();
+
+    // Disable input while waiting
+    input.disabled = true;
 
     try {
         const response = await fetch('/api/conversation', {
@@ -414,12 +722,26 @@ async function handleConversation() {
         const data = await response.json();
         console.log('Received response:', data);
 
-        displayMessages(data.messages);
+        // Remove loading and show answer
+        removeLoadingMessage();
 
-        input.value = '';
+        // Find the answer in the response
+        const answerMsg = data.messages.find(m => m.type === 'answer' && m.content);
+        if (answerMsg) {
+            appendAnswerMessage(answerMsg.content);
+        }
+
+        // Update stored messages
+        currentMessages = data.messages;
+
     } catch (error) {
         console.error('Conversation error:', error);
-        alert('Error: ' + error.message);
+        removeLoadingMessage();
+        appendAnswerMessage('Error: ' + error.message);
+    } finally {
+        // Re-enable input
+        input.disabled = false;
+        input.focus();
     }
 }
 

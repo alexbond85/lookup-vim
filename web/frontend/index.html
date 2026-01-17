@@ -18,10 +18,31 @@
             --bg: #ffffff;
             --fg: #1a1a1a;
             --border: #e5e7eb;
-            --accent: #2563eb;
+            --accent: #0d9488;
+            --accent-hover: #0f766e;
             --highlight-bg: #fef3c7;
             --highlight-border: #f59e0b;
-            --panel-bg: #f9fafb;
+            --panel-bg: #fafaf9;
+            --success: #059669;
+            --user-bg: #f0fdfa;
+            --user-border: #99f6e4;
+            --message-bg: #ffffff;
+            --chat-bg: linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%);
+            --input-bg: #ffffff;
+        }
+
+        /* Dark theme variables */
+        body.dark-theme {
+            --bg: #1a1a1a;
+            --fg: #e5e5e5;
+            --border: #333333;
+            --panel-bg: #252525;
+            --success: #10b981;
+            --user-bg: #1a2e2a;
+            --user-border: #134e4a;
+            --message-bg: #2d2d2d;
+            --chat-bg: linear-gradient(180deg, #1e1e1e 0%, #171717 100%);
+            --input-bg: #2d2d2d;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -34,67 +55,208 @@
             background: var(--bg);
         }
 
+        /* Toolbar */
         #toolbar {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 12px 16px;
+            padding: 10px 16px;
             border-bottom: 1px solid var(--border);
-            background: white;
+            background: var(--bg);
+            min-height: 52px;
         }
 
-        #toolbar button {
-            padding: 8px 16px;
+        /* Hamburger menu */
+        .menu-container {
+            position: relative;
+        }
+
+        #menu-btn {
+            padding: 8px 12px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            background: white;
+            background: var(--bg);
+            color: var(--fg);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 18px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        #toolbar button:hover {
+        #menu-btn:hover {
             background: var(--panel-bg);
         }
 
-        #toolbar button.translate-btn {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
+        .menu-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: var(--message-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            min-width: 180px;
+            z-index: 1000;
+            display: none;
         }
 
-        #toolbar button.translate-btn:hover {
-            background: #1d4ed8;
+        .menu-dropdown.open {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--fg);
+        }
+
+        .menu-item:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+
+        .menu-item:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+
+        .menu-item:hover {
+            background: var(--panel-bg);
+        }
+
+        .menu-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        .menu-item .icon {
+            width: 18px;
+            text-align: center;
+        }
+
+        /* Theme submenu */
+        .theme-submenu {
+            position: relative;
+        }
+
+        .theme-submenu .submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            background: var(--message-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            min-width: 160px;
+            display: none;
+        }
+
+        .theme-submenu:hover .submenu {
+            display: block;
+        }
+
+        .theme-option {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--fg);
+        }
+
+        .theme-option:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+
+        .theme-option:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+
+        .theme-option:hover {
+            background: var(--panel-bg);
+        }
+
+        .theme-option.active {
+            background: var(--accent);
+            color: white;
         }
 
         #filename {
             flex: 1;
-            color: #6b7280;
+            color: var(--fg);
+            opacity: 0.7;
             font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        #translate-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        #translate-btn:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        #translate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         #vim-mode {
-            color: #6b7280;
+            color: var(--fg);
+            opacity: 0.7;
             font-family: monospace;
-            font-size: 13px;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: var(--panel-bg);
+            border-radius: 4px;
         }
 
+        /* Main container - flex layout for resizable panes */
         #main-container {
-            display: grid;
-            grid-template-columns: 65% 35%;
+            display: flex;
             flex: 1;
             overflow: hidden;
         }
 
         #editor-pane {
-            border-right: 1px solid var(--border);
+            flex: 0 0 65%;
             overflow: hidden;
             position: relative;
+            min-width: 200px;
         }
 
         #editor-pane.drag-over {
-            background: #eff6ff;
+            background: #f0fdfa;
             outline: 2px dashed var(--accent);
             outline-offset: -10px;
+        }
+
+        /* Resize handle */
+        #resize-handle {
+            width: 4px;
+            background: var(--border);
+            cursor: col-resize;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+
+        #resize-handle:hover,
+        #resize-handle.dragging {
+            background: var(--accent);
         }
 
         .CodeMirror {
@@ -120,11 +282,14 @@
             box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.4);
         }
 
+        /* Chat pane */
         #chat-pane {
+            flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background: var(--panel-bg);
+            background: var(--chat-bg);
+            min-width: 280px;
         }
 
         #chat-messages {
@@ -136,60 +301,227 @@
             gap: 16px;
         }
 
+        /* Message cards */
         .message {
             padding: 16px;
-            border-radius: 8px;
-            background: white;
-            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--message-bg);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
         }
 
         .message.translation {
-            border-left: 4px solid var(--accent);
+            border: none;
         }
 
-        .message.question {
-            background: #eff6ff;
-            border-left: 4px solid #3b82f6;
+        .message.translation .query-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .message h3 {
+        .message.translation .query-text {
             font-size: 18px;
-            margin-bottom: 8px;
+            font-weight: 600;
             color: var(--fg);
         }
 
-        .message .translation-text {
-            font-size: 16px;
-            color: #059669;
+        .message.translation .lang-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            color: var(--fg);
+            opacity: 0.7;
             font-weight: 500;
-            margin-bottom: 8px;
+        }
+
+        .message .translation-text {
+            font-size: 17px;
+            color: var(--success);
+            font-weight: 600;
+            margin-bottom: 12px;
         }
 
         .message .explanations {
-            color: #4b5563;
-            line-height: 1.6;
-            white-space: pre-wrap;
+            color: var(--fg);
+            opacity: 0.85;
+            line-height: 1.7;
+            font-size: 14px;
         }
 
+        /* Markdown styles in explanations */
+        .message .explanations p {
+            margin-bottom: 8px;
+        }
+
+        .message .explanations p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message .explanations strong {
+            color: var(--fg);
+            font-weight: 600;
+        }
+
+        .message .explanations em {
+            font-style: italic;
+            opacity: 0.8;
+        }
+
+        .message .explanations ul,
+        .message .explanations ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+
+        .message .explanations li {
+            margin-bottom: 4px;
+        }
+
+        .message .explanations code {
+            background: var(--panel-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, monospace;
+            color: var(--fg);
+        }
+
+        .message .explanations blockquote {
+            border-left: 3px solid var(--accent);
+            padding-left: 12px;
+            margin: 8px 0;
+            opacity: 0.8;
+            font-style: italic;
+        }
+
+        /* Question message (user) */
+        .message.question {
+            background: var(--user-bg);
+            border: 1px solid var(--user-border);
+            margin-left: 24px;
+        }
+
+        .message.question .message-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .message.question .message-content {
+            color: var(--fg);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Answer message (assistant) */
+        .message.answer {
+            background: var(--message-bg);
+            margin-right: 24px;
+        }
+
+        .message.answer .message-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--fg);
+            opacity: 0.6;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .message.answer .message-content {
+            color: var(--fg);
+            opacity: 0.85;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        /* Loading indicator */
+        .message.loading {
+            background: var(--message-bg);
+            margin-right: 24px;
+        }
+
+        .message.loading .message-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--fg);
+            opacity: 0.6;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0.6);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Chat input */
         #chat-input-container {
             padding: 16px;
             border-top: 1px solid var(--border);
-            background: white;
+            background: var(--message-bg);
         }
 
         #chat-input {
             width: 100%;
-            padding: 12px;
+            padding: 12px 16px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 24px;
             font-size: 14px;
             font-family: inherit;
+            background: var(--input-bg);
+            color: var(--fg);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        #chat-input::placeholder {
+            color: var(--fg);
+            opacity: 0.5;
         }
 
         #chat-input:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        #chat-input:disabled {
+            background: var(--panel-bg);
+            cursor: not-allowed;
         }
 
         .empty-state {
@@ -197,7 +529,8 @@
             align-items: center;
             justify-content: center;
             height: 100%;
-            color: #9ca3af;
+            color: var(--fg);
+            opacity: 0.5;
             font-size: 14px;
             text-align: center;
             padding: 20px;
@@ -206,9 +539,10 @@
         .help-text {
             margin-top: 10px;
             font-size: 12px;
-            color: #9ca3af;
+            opacity: 0.7;
         }
 
+        /* Context action buttons - pill style */
         .context-actions {
             margin-top: 16px;
             display: flex;
@@ -218,17 +552,19 @@
 
         .context-btn {
             padding: 8px 16px;
-            border: 1px solid var(--accent);
-            border-radius: 6px;
-            background: white;
-            color: var(--accent);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--panel-bg);
+            color: var(--fg);
             cursor: pointer;
             font-size: 13px;
             font-weight: 500;
+            transition: all 0.15s;
         }
 
-        .context-btn:hover {
+        .context-btn:hover:not(:disabled) {
             background: var(--accent);
+            border-color: var(--accent);
             color: white;
         }
 
@@ -236,24 +572,272 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+
+        .context-btn.loading {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        /* Prevent text selection during resize */
+        body.resizing {
+            user-select: none;
+            cursor: col-resize;
+        }
+
+        body.resizing * {
+            cursor: col-resize !important;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--panel-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 5px;
+            border: 2px solid var(--panel-bg);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Firefox scrollbar */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) var(--panel-bg);
+        }
+
+        /* CodeMirror scrollbar overrides */
+        .CodeMirror-vscrollbar::-webkit-scrollbar,
+        .CodeMirror-hscrollbar::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .CodeMirror-vscrollbar::-webkit-scrollbar-track,
+        .CodeMirror-hscrollbar::-webkit-scrollbar-track {
+            background: var(--panel-bg);
+        }
+
+        .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
+        .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 5px;
+            border: 2px solid var(--panel-bg);
+        }
+
+        .CodeMirror-vscrollbar::-webkit-scrollbar-thumb:hover,
+        .CodeMirror-hscrollbar::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Dark theme scrollbar adjustments */
+        body.dark-theme ::-webkit-scrollbar-thumb {
+            background: #444;
+        }
+
+        body.dark-theme ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        body.dark-theme * {
+            scrollbar-color: #444 var(--panel-bg);
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--message-bg);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            min-width: 360px;
+            max-width: 90%;
+            animation: modalSlideIn 0.2s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--fg);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--fg);
+            opacity: 0.6;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            opacity: 1;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .setting-group {
+            margin-bottom: 16px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--fg);
+            margin-bottom: 8px;
+        }
+
+        .setting-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--fg);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .setting-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        .setting-hint {
+            font-size: 12px;
+            color: #ef4444;
+            margin: 0;
+            min-height: 18px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-secondary {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--panel-bg);
+            color: var(--fg);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-primary {
+            padding: 8px 16px;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div id="toolbar">
-        <button id="open-file">Open File</button>
-        <button id="translate-btn" class="translate-btn">Translate Selection</button>
-        <select id="theme-select" style="padding: 6px; border-radius: 4px; border: 1px solid #e5e7eb;">
-            <option value="default">Default</option>
-            <option value="monokai">Monokai</option>
-            <option value="dracula">Dracula</option>
-            <option value="solarized dark">Solarized Dark</option>
-            <option value="solarized light">Solarized Light</option>
-            <option value="material">Material</option>
-            <option value="base16-light">Base16 Light</option>
-        </select>
-        <button id="settings">Settings</button>
-        <span id="filename"></span>
-        <span id="vim-mode">-- NORMAL --</span>
+        <div class="menu-container">
+            <button id="menu-btn">&#9776;</button>
+            <div class="menu-dropdown" id="menu-dropdown">
+                <div class="menu-item" id="menu-open-file">
+                    <span class="icon">&#128194;</span>
+                    <span>Open File</span>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-item theme-submenu">
+                    <span class="icon">&#127912;</span>
+                    <span>Theme</span>
+                    <span style="margin-left: auto;">&#9656;</span>
+                    <div class="submenu" id="theme-submenu">
+                        <div class="theme-option" data-theme="default">Default</div>
+                        <div class="theme-option" data-theme="monokai">Monokai</div>
+                        <div class="theme-option" data-theme="dracula">Dracula</div>
+                        <div class="theme-option" data-theme="solarized dark">Solarized Dark</div>
+                        <div class="theme-option" data-theme="solarized light">Solarized Light</div>
+                        <div class="theme-option" data-theme="material">Material</div>
+                        <div class="theme-option" data-theme="base16-light">Base16 Light</div>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-item" id="menu-settings">
+                    <span class="icon">&#9881;</span>
+                    <span>Settings</span>
+                </div>
+            </div>
+        </div>
+        <span id="filename">No file loaded</span>
+        <button id="translate-btn">Translate Selection</button>
+        <span id="vim-mode">NORMAL</span>
     </div>
 
     <div id="main-container">
@@ -261,11 +845,13 @@
             <textarea id="editor"></textarea>
         </div>
 
+        <div id="resize-handle"></div>
+
         <div id="chat-pane">
             <div id="chat-messages">
                 <div class="empty-state">
                     <div>
-                        <div>Select text and click "Translate Selection" button</div>
+                        <div>Select text and click "Translate" button</div>
                         <div class="help-text">Or use vim: press <code>v</code> to select, then type <code>:t</code> or <code>:tr</code></div>
                     </div>
                 </div>
@@ -281,10 +867,50 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" id="settings-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="source-lang">Source Language</label>
+                    <select id="source-lang">
+                        <option value="French">French</option>
+                        <option value="German">German</option>
+                        <option value="Spanish">Spanish</option>
+                        <option value="Russian">Russian</option>
+                        <option value="English">English</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label for="target-lang">Target Language</label>
+                    <select id="target-lang">
+                        <option value="Russian">Russian</option>
+                        <option value="English">English</option>
+                        <option value="German">German</option>
+                        <option value="French">French</option>
+                        <option value="Spanish">Spanish</option>
+                    </select>
+                </div>
+                <p class="setting-hint" id="lang-error"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="settings-cancel">Cancel</button>
+                <button class="btn-primary" id="settings-save">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- CodeMirror and dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/vim.min.js"></script>
+
+    <!-- Marked for markdown rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 
     <!-- Context extraction (must load before app.js) -->
     <script src="/static/context-extractor.js"></script>

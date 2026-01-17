@@ -123,6 +123,12 @@ class SessionManager:
             self._sessions[session_id] = Session(session_id, self._factory)
         return self._sessions[session_id]
 
+    def reload_factory(self):
+        """Reload the factory with fresh config (after config changes)"""
+        self._factory = ServiceFactory(cache_type="jsonl", model="gpt-5.1")
+        # Clear existing sessions so they get recreated with new factory
+        self._sessions.clear()
+
     @property
     def factory(self) -> ServiceFactory:
         return self._factory
