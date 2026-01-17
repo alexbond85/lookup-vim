@@ -60,6 +60,18 @@ function initEditor() {
 
     console.log('Vim commands registered: type ":t" or ":tr" in vim normal mode!');
 
+    // Handle clicks on highlights
+    editor.getWrapperElement().addEventListener('click', function(e) {
+        // Check if clicked element is a highlight
+        if (e.target.classList.contains('highlight-mark')) {
+            const text = e.target.textContent;
+            if (text && text.trim()) {
+                console.log('Highlight clicked:', text);
+                translateHighlightedText(text.trim());
+            }
+        }
+    });
+
     console.log('Editor initialized with vim mode and theme:', savedTheme);
 }
 
@@ -381,6 +393,65 @@ async function loadFile(filename, content) {
         console.log('Loaded ' + highlights.length + ' highlights');
     } catch (error) {
         console.error('Load history error:', error);
+    }
+}
+
+async function translateHighlightedText(text) {
+    // Translate text from a clicked highlight (will be served from cache)
+    console.log('Translating highlighted text:', text);
+
+    // Show loading state
+    const btn = document.getElementById('translate-btn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Translating...';
+    btn.disabled = true;
+
+    // Prepare request data - no context needed, cache will handle it
+    const requestData = {
+        selection: text,
+        phrase: "",
+        paragraph: "",
+        file: currentFile || ""
+    };
+
+    console.log('Sending to API (from highlight):', requestData);
+
+    // Call API
+    try {
+        const response = await fetch('/api/lookup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': SESSION_ID
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Server error: ' + response.status);
+        }
+
+        const data = await response.json();
+
+        console.log('API response (from highlight):', data);
+
+        // Store messages for conversation
+        currentMessages = data.messages;
+
+        // Display (no context buttons since no phrase/paragraph)
+        displayMessagesWithContext(data.messages, false, false);
+
+        // Enable chat input
+        document.getElementById('chat-input').disabled = false;
+
+        console.log('Translation received (from highlight)');
+    } catch (error) {
+        console.error('Lookup error:', error);
+        alert('Translation error: ' + error.message + '\n\nCheck console for details');
+    } finally {
+        // Reset button
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 }
 

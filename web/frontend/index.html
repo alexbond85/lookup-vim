@@ -270,6 +270,12 @@
             background: rgba(245, 158, 11, 0.2) !important;
             border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
             box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+            cursor: pointer !important;
+            transition: background 0.15s;
+        }
+
+        .highlight-mark:hover {
+            background: rgba(245, 158, 11, 0.35) !important;
         }
 
         /* Better highlights for dark themes */
@@ -280,6 +286,14 @@
             background: rgba(255, 215, 0, 0.25) !important;
             border-bottom: 2px solid rgba(255, 215, 0, 0.9) !important;
             box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.4);
+            cursor: pointer !important;
+        }
+
+        .cm-s-monokai .highlight-mark:hover,
+        .cm-s-dracula .highlight-mark:hover,
+        .cm-s-material .highlight-mark:hover,
+        .cm-s-solarized.cm-s-dark .highlight-mark:hover {
+            background: rgba(255, 215, 0, 0.4) !important;
         }
 
         /* Chat pane */

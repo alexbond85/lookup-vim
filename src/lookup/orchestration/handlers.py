@@ -160,8 +160,13 @@ class TranslationHandler(LookupHandler):
             result = self.translation_service.translate(
                 text, phrase if phrase else None
             )
-            context_key = self.cache.make_context_key(text, phrase)
-            self.cache.set(context_key, result, selection_data)
+            # Always save with simple key so cache hits work without context
+            simple_key = self.cache.make_simple_key(text)
+            self.cache.set(simple_key, result, selection_data)
+            # Also save with context key if there's a phrase
+            if phrase:
+                context_key = self.cache.make_context_key(text, phrase)
+                self.cache.set(context_key, result, selection_data)
             return result
         except Exception as e:
             logger.error(f"Translation error: {e}")
