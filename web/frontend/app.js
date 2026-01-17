@@ -1,5 +1,6 @@
-// Session ID for conversation continuity
-const SESSION_ID = crypto.randomUUID();
+// Session ID for conversation continuity - persist across page reloads
+const SESSION_ID = localStorage.getItem('sessionId') || crypto.randomUUID();
+localStorage.setItem('sessionId', SESSION_ID);
 
 // State
 let currentFile = null;
@@ -24,7 +25,33 @@ document.addEventListener('DOMContentLoaded', function() {
     setupResizeHandle();
     setupMenu();
     setupSettingsModal();
+    loadSessionMessages();
 });
+
+async function loadSessionMessages() {
+    try {
+        const response = await fetch('/api/session/messages', {
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0) {
+            currentMessages = data.messages;
+            displayMessagesWithContext(data.messages, false, false, false);
+
+            // Switch to follow-up mode since we have messages
+            const input = document.getElementById('chat-input');
+            inputMode = 'followup';
+            input.placeholder = 'Ask a follow-up question...';
+            updateSendButton();
+
+            console.log('Loaded', data.messages.length, 'messages from session');
+        }
+    } catch (error) {
+        console.error('Error loading session messages:', error);
+    }
+}
 
 function initEditor() {
     const textarea = document.getElementById('editor');
@@ -375,11 +402,31 @@ function setupMenu() {
         });
     });
 
+    // Edit cache menu item
+    document.getElementById('menu-edit-cache').addEventListener('click', function() {
+        menuDropdown.classList.remove('open');
+        openCacheFile();
+    });
+
     // Settings menu item
     document.getElementById('menu-settings').addEventListener('click', function() {
         menuDropdown.classList.remove('open');
         openSettingsModal();
     });
+}
+
+async function openCacheFile() {
+    try {
+        const response = await fetch('/api/cache/open', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to open cache file');
+        }
+        console.log('Cache file opened:', data.path);
+    } catch (error) {
+        console.error('Error opening cache:', error);
+        alert('Error opening cache file: ' + error.message);
+    }
 }
 
 function setupSettingsModal() {

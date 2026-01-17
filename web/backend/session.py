@@ -31,10 +31,13 @@ class Session:
         self.paragraph_translated = False
 
     def reset_conversation(self):
-        """Reset conversation for new translation (match CLI behavior)"""
+        """Reset conversation context for new translation (match CLI behavior)
+
+        Only resets the LLM conversation context, not the UI message history.
+        This means follow-up questions will only have context about the latest translation,
+        but the user can still see all previous translations in the chat.
+        """
         self.conversation_service.reset()
-        # Clear Q&A messages but keep structure for new translation
-        self.messages = []
 
     def add_translation(self, query: str, result: LookupResult):
         """Add translation to chat history"""

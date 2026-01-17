@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 from web.backend.models import (
@@ -177,6 +180,13 @@ async def get_history(file: str | None = None):
     return {"entries": entries}
 
 
+@router.get("/session/messages")
+async def get_session_messages(x_session_id: str = Header(...)):
+    """Get current session's chat messages"""
+    session = sessions.get_or_create(x_session_id)
+    return {"messages": session.messages}
+
+
 @router.get("/config")
 async def get_config():
     """Return current configuration"""
@@ -231,3 +241,37 @@ async def update_config(request: ConfigUpdateRequest):
         "target_lang": request.target_lang,
         "message": "Configuration updated successfully"
     }
+
+
+@router.post("/cache/open")
+async def open_cache_file():
+    """Open the cache JSONL file in the default text editor"""
+    try:
+        config = sessions.factory.config
+        if not config:
+            raise HTTPException(500, "Configuration not loaded")
+
+        cache_file = config.selections_file
+        print(f"Opening cache file: {cache_file}")
+
+        if not cache_file.exists():
+            # Create empty file if it doesn't exist
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.touch()
+            print(f"Created new cache file: {cache_file}")
+
+        # Use 'open -t' on macOS to open in default text editor
+        if sys.platform == "darwin":
+            result = subprocess.run(["open", "-t", str(cache_file)], capture_output=True)
+            if result.returncode != 0:
+                print(f"open command failed: {result.stderr}")
+        elif sys.platform == "win32":
+            subprocess.run(["start", str(cache_file)], shell=True)
+        else:
+            # Linux - try xdg-open
+            subprocess.run(["xdg-open", str(cache_file)])
+
+        return {"path": str(cache_file), "message": "Opened in default editor"}
+    except Exception as e:
+        print(f"Error opening cache: {e}")
+        raise HTTPException(500, f"Error opening cache: {str(e)}")
