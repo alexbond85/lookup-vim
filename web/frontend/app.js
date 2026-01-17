@@ -209,7 +209,60 @@ function initEditor() {
         handleLookup();
     });
 
-    console.log('Vim commands registered: type ":t" or ":tr" in vim normal mode!');
+    // Map Enter key in visual mode to trigger translation
+    CodeMirror.Vim.mapCommand('<CR>', 'action', 'translateSelection', {}, {
+        context: 'visual'
+    });
+    
+    // Define the translate action for visual mode
+    CodeMirror.Vim.defineAction('translateSelection', function(cm) {
+        console.log('Enter pressed in visual mode - translating selection');
+        // Get the selection before exiting visual mode
+        const selection = cm.getSelection();
+        if (selection && selection.trim()) {
+            // Store cursor position and selection range BEFORE exiting visual mode
+            const cursorPos = cm.getCursor('head');
+            const selectionStart = cm.getCursor('anchor');
+            const selectionEnd = cm.getCursor('head');
+            
+            // Vim visual mode is exclusive at the end - we need to extend by 1 char
+            // to include the character under the cursor
+            const extendedEnd = {
+                line: selectionEnd.line,
+                ch: selectionEnd.ch
+            };
+            
+            // Check if we need to extend (if selection is forward or backward)
+            const isForward = (selectionEnd.line > selectionStart.line) || 
+                             (selectionEnd.line === selectionStart.line && selectionEnd.ch > selectionStart.ch);
+            
+            if (isForward) {
+                // Forward selection: extend end by 1
+                extendedEnd.ch += 1;
+            } else {
+                // Backward selection: extend start by 1
+                const extendedStart = {
+                    line: selectionStart.line,
+                    ch: selectionStart.ch + 1
+                };
+                // Exit visual mode back to normal
+                CodeMirror.Vim.exitVisualMode(cm);
+                // Trigger translation with the selection and range
+                translateFromInputWithRefocus(selection, cursorPos, extendedEnd, extendedStart);
+                return;
+            }
+            
+            // Exit visual mode back to normal
+            CodeMirror.Vim.exitVisualMode(cm);
+            // Trigger translation with the selection and range
+            translateFromInputWithRefocus(selection, cursorPos, selectionStart, extendedEnd);
+        } else {
+            // No selection, just exit visual mode
+            CodeMirror.Vim.exitVisualMode(cm);
+        }
+    });
+
+    console.log('Vim commands registered: type ":t" or ":tr" in vim normal mode, or press Enter in visual mode!');
 
     // Handle clicks on highlights
     editor.getWrapperElement().addEventListener('click', function(e) {
@@ -431,10 +484,126 @@ async function translateFromInput() {
         autoResizeTextarea(input);
         updateSendButton();
 
+        // Return focus to vim editor
+        if (editor) {
+            editor.focus();
+            console.log('Focus returned to editor');
+        }
+
         console.log('Translation received, switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
         alert('Translation error: ' + error.message);
+    } finally {
+        // Reset button state
+        sendBtn.textContent = originalBtnText;
+        updateSendButton();
+    }
+}
+
+// New function: translate with automatic refocus and cursor restoration
+async function translateFromInputWithRefocus(text, cursorPos, selectionStart, selectionEnd) {
+    const input = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    if (!text) return;
+
+    console.log('Translating from visual mode:', text);
+
+    // Show loading state
+    const originalBtnText = sendBtn.textContent;
+    sendBtn.textContent = 'Translating...';
+    sendBtn.disabled = true;
+
+    // Get context from cursor position
+    let sentence = '';
+    let paragraph = '';
+
+    if (cursorPos) {
+        try {
+            sentence = getSentenceAtCursor(editor, cursorPos);
+            paragraph = extractParagraphFromEditor(editor, cursorPos.line);
+        } catch (e) {
+            console.log('Could not get context:', e);
+        }
+    }
+
+    // Prepare request data
+    const requestData = {
+        selection: text,
+        phrase: sentence || "",
+        paragraph: paragraph || "",
+        file: currentFile || ""
+    };
+
+    console.log('Sending to API:', requestData);
+
+    // Call API
+    try {
+        const response = await fetch('/api/lookup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': SESSION_ID
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Server error: ' + response.status);
+        }
+
+        const data = await response.json();
+
+        console.log('API response:', data);
+
+        // Add highlight for the translated text using captured selection range
+        if (selectionStart && selectionEnd) {
+            // Normalize from/to order (anchor might be after head)
+            let from = selectionStart;
+            let to = selectionEnd;
+            if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                [from, to] = [to, from];
+            }
+            editor.markText(from, to, { className: 'highlight-mark' });
+            highlights.push({ from, to, selection: text });
+            console.log('Added highlight from visual mode selection');
+        }
+
+        // Store messages and cache state
+        currentMessages = data.messages;
+        lastFromCache = data.from_cache || false;
+
+        // Display with context buttons and cache indicator
+        displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph, data.from_cache);
+
+        // Switch to follow-up mode
+        input.value = '';
+        input.classList.remove('has-selection');
+        inputMode = 'followup';
+        isSelectionModified = false;
+        originalSelectionText = '';
+        input.placeholder = 'Ask a follow-up question...';
+
+        // Reset textarea height and update button
+        autoResizeTextarea(input);
+        updateSendButton();
+
+        // Restore cursor position and focus editor
+        if (editor && cursorPos) {
+            editor.setCursor(cursorPos);
+            editor.focus();
+            console.log('Cursor restored and focus returned to editor');
+        }
+
+        console.log('Translation received, switched to followup mode');
+    } catch (error) {
+        console.error('Lookup error:', error);
+        alert('Translation error: ' + error.message);
+        // Return focus even on error
+        if (editor) {
+            editor.focus();
+        }
     } finally {
         // Reset button state
         sendBtn.textContent = originalBtnText;
@@ -1332,6 +1501,7 @@ if (typeof window !== 'undefined') {
     window.updateSelectionPreview = updateSelectionPreview;
     window.clearSelectionPreview = clearSelectionPreview;
     window.translateFromInput = translateFromInput;
+    window.translateFromInputWithRefocus = translateFromInputWithRefocus;
     window.updateSendButton = updateSendButton;
     window.autoResizeTextarea = autoResizeTextarea;
     window.handleSubmit = handleSubmit;
