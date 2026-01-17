@@ -255,6 +255,62 @@ TestHarness.test('API: Phrase (sentence) is sent in request', async function() {
     }
 });
 
+TestHarness.test('API: Phrase differs from selection (enables has_phrase)', async function() {
+    FetchMock.clearCalls();
+    clearMessages();
+
+    EditorHelper.setContent('Bonjour monsieur. Comment allez-vous?');
+    EditorHelper.selectText('monsieur');
+
+    await handleLookup();
+
+    const calls = FetchMock.getCallsTo('/api/lookup');
+    const body = calls[0].body;
+
+    // This is the key check - phrase must differ from selection for has_phrase=true
+    if (body.phrase.trim() === body.selection.trim()) {
+        throw new Error(
+            `CRITICAL: phrase equals selection! Backend will return has_phrase=false.\n` +
+            `selection: "${body.selection}"\n` +
+            `phrase: "${body.phrase}"`
+        );
+    }
+});
+
+TestHarness.test('API: Paragraph differs from selection and phrase (enables has_paragraph)', async function() {
+    FetchMock.clearCalls();
+    clearMessages();
+
+    // Multi-line paragraph
+    const content = 'First sentence here. Second sentence too.\n\nAnother paragraph.';
+    EditorHelper.setContent(content);
+    EditorHelper.selectText('First');
+
+    await handleLookup();
+
+    const calls = FetchMock.getCallsTo('/api/lookup');
+    const body = calls[0].body;
+
+    // Paragraph must differ from both selection and phrase
+    if (body.paragraph.trim() === body.selection.trim()) {
+        throw new Error(
+            `paragraph equals selection! Backend will return has_paragraph=false.\n` +
+            `selection: "${body.selection}"\n` +
+            `paragraph: "${body.paragraph}"`
+        );
+    }
+
+    // For single-line content, paragraph might equal phrase (that's OK)
+    // But for multi-sentence content, they should differ
+    if (body.paragraph.trim() === body.phrase.trim() && body.paragraph.includes('Second')) {
+        throw new Error(
+            `paragraph equals phrase for multi-sentence content!\n` +
+            `phrase: "${body.phrase}"\n` +
+            `paragraph: "${body.paragraph}"`
+        );
+    }
+});
+
 TestHarness.test('API: Paragraph is sent in request', async function() {
     FetchMock.clearCalls();
     clearMessages();

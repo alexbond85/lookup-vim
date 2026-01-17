@@ -34,6 +34,7 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
     session = sessions.get_or_create(x_session_id)
     session.current_phrase = request.phrase
     session.current_paragraph = request.paragraph
+    session.reset_context_flags()  # New selection, reset tracking
     session.add_translation(request.selection, result)
 
     # Determine if we should show context buttons
@@ -77,8 +78,20 @@ async def lookup_phrase(x_session_id: str = Header(...)):
 
     result = sessions.factory.lookup_service.lookup(selection_data)
     session.add_translation(session.current_phrase, result)
+    session.phrase_translated = True  # Mark as translated
 
-    return {"messages": session.messages}
+    # Check if paragraph is still available (differs from phrase AND not yet translated)
+    has_paragraph = bool(
+        session.current_paragraph and
+        session.current_paragraph.strip() != session.current_phrase.strip() and
+        not session.paragraph_translated
+    )
+
+    return {
+        "messages": session.messages,
+        "has_phrase": False,  # Already translated
+        "has_paragraph": has_paragraph
+    }
 
 
 @router.post("/lookup/paragraph")
@@ -99,8 +112,20 @@ async def lookup_paragraph(x_session_id: str = Header(...)):
 
     result = sessions.factory.lookup_service.lookup(selection_data)
     session.add_translation(session.current_paragraph, result)
+    session.paragraph_translated = True  # Mark as translated
 
-    return {"messages": session.messages}
+    # Check if phrase is still available (differs from paragraph AND not yet translated)
+    has_phrase = bool(
+        session.current_phrase and
+        session.current_phrase.strip() != session.current_paragraph.strip() and
+        not session.phrase_translated
+    )
+
+    return {
+        "messages": session.messages,
+        "has_phrase": has_phrase,
+        "has_paragraph": False  # Already translated
+    }
 
 
 @router.post("/conversation")

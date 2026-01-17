@@ -291,7 +291,7 @@ async function translatePhrase() {
         }
 
         const data = await response.json();
-        displayMessages(data.messages);
+        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
     } catch (error) {
         console.error('Phrase translation error:', error);
         alert('Error: ' + error.message);
@@ -315,7 +315,7 @@ async function translateParagraph() {
         }
 
         const data = await response.json();
-        displayMessages(data.messages);
+        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
     } catch (error) {
         console.error('Paragraph translation error:', error);
         alert('Error: ' + error.message);

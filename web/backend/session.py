@@ -21,6 +21,14 @@ class Session:
         self.current_file: str | None = None
         self.current_phrase: str | None = None
         self.current_paragraph: str | None = None
+        # Track which contexts have been translated for current selection
+        self.phrase_translated: bool = False
+        self.paragraph_translated: bool = False
+
+    def reset_context_flags(self):
+        """Reset translation tracking for new selection"""
+        self.phrase_translated = False
+        self.paragraph_translated = False
 
     def add_translation(self, query: str, result: LookupResult):
         """Add translation to chat history"""
