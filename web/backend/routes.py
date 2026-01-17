@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 from web.backend.models import (
     ConversationRequest,
@@ -241,6 +241,41 @@ async def update_config(request: ConfigUpdateRequest):
         "target_lang": request.target_lang,
         "message": "Configuration updated successfully"
     }
+
+
+@router.get("/settings")
+async def get_settings():
+    """Load app settings from disk"""
+    import json
+    config = sessions.factory.config
+    settings_file = config.cache_dir / "app_settings.json"
+
+    if settings_file.exists():
+        try:
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+
+    return {}
+
+
+@router.post("/settings")
+async def save_settings(request: Request):
+    """Save app settings to disk"""
+    import json
+    config = sessions.factory.config
+    settings_file = config.cache_dir / "app_settings.json"
+
+    try:
+        settings = await request.json()
+        config.cache_dir.mkdir(parents=True, exist_ok=True)
+        with open(settings_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        return {"message": "Settings saved"}
+    except Exception as e:
+        print(f"Error saving settings: {e}")
+        raise HTTPException(500, f"Error saving settings: {str(e)}")
 
 
 @router.post("/cache/open")

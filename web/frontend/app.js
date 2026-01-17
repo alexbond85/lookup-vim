@@ -18,15 +18,48 @@ let inputMode = 'translate';
 let isSelectionModified = false; // Track if user edited the selection text
 let originalSelectionText = ''; // Original selection before user edits
 
+// App settings (loaded from disk)
+let appSettings = {};
+
 // Initialize CodeMirror when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load settings from disk first
+    await loadAppSettings();
+
     initEditor();
     setupEventListeners();
     setupResizeHandle();
     setupMenu();
     setupSettingsModal();
     loadSessionMessages();
+    updateRecentFilesMenu();
+    restoreLastFile();
 });
+
+async function loadAppSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+            appSettings = await response.json();
+            console.log('Loaded app settings:', appSettings);
+        }
+    } catch (error) {
+        console.error('Error loading app settings:', error);
+    }
+}
+
+async function saveAppSettings() {
+    try {
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(appSettings)
+        });
+        console.log('Saved app settings');
+    } catch (error) {
+        console.error('Error saving app settings:', error);
+    }
+}
 
 async function loadSessionMessages() {
     try {
@@ -53,14 +86,95 @@ async function loadSessionMessages() {
     }
 }
 
+function restoreLastFile() {
+    const savedFile = appSettings.lastFile;
+    const savedContent = appSettings.lastFileContent;
+    const savedCursor = appSettings.lastCursorPosition;
+
+    console.log('Restore check - savedFile:', savedFile);
+    console.log('Restore check - savedContent length:', savedContent ? savedContent.length : 0);
+    console.log('Restore check - savedCursor:', savedCursor);
+
+    if (savedFile && savedContent) {
+        console.log('Restoring last file:', savedFile);
+        currentFile = savedFile;
+        document.getElementById('filename').textContent = savedFile;
+        editor.setValue(savedContent);
+
+        // Restore cursor position
+        if (savedCursor) {
+            try {
+                editor.setCursor(savedCursor);
+                // Scroll cursor into view
+                editor.scrollIntoView(savedCursor, 100);
+                console.log('Restored cursor position:', savedCursor);
+            } catch (e) {
+                console.error('Error restoring cursor:', e);
+            }
+        }
+
+        // Load highlights for this file
+        loadHighlightsForFile(savedFile, savedContent);
+    }
+}
+
+async function loadHighlightsForFile(filename, content) {
+    try {
+        const response = await fetch('/api/history?file=' + encodeURIComponent(filename));
+        const data = await response.json();
+
+        highlights = data.entries
+            .map(entry => {
+                const pos = content.indexOf(entry.selection);
+                if (pos >= 0) {
+                    return {
+                        from: editor.posFromIndex(pos),
+                        to: editor.posFromIndex(pos + entry.selection.length),
+                        selection: entry.selection
+                    };
+                }
+                return null;
+            })
+            .filter(Boolean);
+
+        // Apply highlights
+        highlights.forEach(h => {
+            editor.markText(h.from, h.to, { className: 'highlight-mark' });
+        });
+
+        console.log('Loaded', highlights.length, 'highlights');
+    } catch (error) {
+        console.error('Error loading highlights:', error);
+    }
+}
+
+function saveFileState() {
+    if (currentFile && editor) {
+        // Save file content (limit to 5MB)
+        const content = editor.getValue();
+        console.log('Saving file state - file:', currentFile, 'content length:', content.length);
+        if (content.length < 5 * 1024 * 1024) {
+            appSettings.lastFile = currentFile;
+            appSettings.lastFileContent = content;
+        }
+        // Save cursor position
+        appSettings.lastCursorPosition = editor.getCursor();
+        // Persist to disk
+        saveAppSettings();
+    } else {
+        console.log('saveFileState skipped - currentFile:', currentFile, 'editor:', !!editor);
+    }
+}
+
 function initEditor() {
     const textarea = document.getElementById('editor');
 
-    // Load saved theme
-    const savedTheme = localStorage.getItem('editorTheme') || 'default';
+    // Load saved theme from appSettings (disk-persisted)
+    const savedTheme = appSettings.editorTheme || 'default';
+    console.log('initEditor - loading theme:', savedTheme);
 
-    // Load saved split position
-    const savedSplit = localStorage.getItem('splitPosition') || '65';
+    // Load saved split position from appSettings
+    const savedSplit = appSettings.splitPosition || '65';
     const editorPane = document.getElementById('editor-pane');
     const chatPane = document.getElementById('chat-pane');
     editorPane.style.flex = `0 0 ${savedSplit}%`;
@@ -123,9 +237,29 @@ function initEditor() {
         } else {
             clearSelectionPreview();
         }
+
+        // Save cursor position (debounced via the periodic save)
+        saveCursorPosition();
+    });
+
+    // Save state before page unload
+    window.addEventListener('beforeunload', function() {
+        saveFileState();
     });
 
     console.log('Editor initialized with vim mode and theme:', savedTheme);
+}
+
+// Debounced cursor position save
+let cursorSaveTimeout = null;
+function saveCursorPosition() {
+    if (cursorSaveTimeout) clearTimeout(cursorSaveTimeout);
+    cursorSaveTimeout = setTimeout(function() {
+        if (currentFile && editor) {
+            appSettings.lastCursorPosition = editor.getCursor();
+            saveAppSettings();
+        }
+    }, 1000); // Save after 1s of no cursor movement
 }
 
 // Selection preview functions for live selection UX
@@ -357,7 +491,8 @@ function setupResizeHandle() {
             // Save position
             const containerWidth = container.offsetWidth;
             const percentage = (editorPane.offsetWidth / containerWidth) * 100;
-            localStorage.setItem('splitPosition', percentage.toFixed(1));
+            appSettings.splitPosition = percentage.toFixed(1);
+            saveAppSettings();
         }
     });
 }
@@ -395,7 +530,8 @@ function setupMenu() {
             e.stopPropagation();
             const theme = this.dataset.theme;
             editor.setOption('theme', theme);
-            localStorage.setItem('editorTheme', theme);
+            appSettings.editorTheme = theme;
+            saveAppSettings();
             updateThemeOptions(theme);
             menuDropdown.classList.remove('open');
             console.log('Theme changed to:', theme);
@@ -435,6 +571,8 @@ function setupSettingsModal() {
     const targetLang = document.getElementById('target-lang');
     const errorEl = document.getElementById('lang-error');
     const saveBtn = document.getElementById('settings-save');
+    const apiKeyInput = document.getElementById('openai-api-key');
+    const toggleBtn = document.getElementById('toggle-api-key');
 
     // Close handlers
     document.getElementById('settings-close').addEventListener('click', closeSettingsModal);
@@ -451,6 +589,17 @@ function setupSettingsModal() {
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal.classList.contains('open')) {
             closeSettingsModal();
+        }
+    });
+
+    // API key visibility toggle
+    toggleBtn.addEventListener('click', function() {
+        if (apiKeyInput.type === 'password') {
+            apiKeyInput.type = 'text';
+            toggleBtn.classList.add('showing');
+        } else {
+            apiKeyInput.type = 'password';
+            toggleBtn.classList.remove('showing');
         }
     });
 
@@ -481,6 +630,12 @@ function validateLanguages() {
 
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
+    const apiKeyInput = document.getElementById('openai-api-key');
+
+    // Load API key from appSettings
+    apiKeyInput.value = appSettings.openaiApiKey || '';
+    apiKeyInput.type = 'password'; // Reset to hidden
+    document.getElementById('toggle-api-key').classList.remove('showing');
 
     // Load current settings
     fetch('/api/config')
@@ -661,34 +816,66 @@ async function loadFile(filename, content) {
     // Set editor content
     editor.setValue(content);
 
+    // Add to recent files
+    addToRecentFiles(filename, content);
+
+    // Save file state
+    saveFileState();
+
     // Load highlights from history
-    try {
-        const response = await fetch('/api/history?file=' + encodeURIComponent(filename));
-        const data = await response.json();
+    await loadHighlightsForFile(filename, content);
+}
 
-        highlights = data.entries
-            .map(entry => {
-                const pos = content.indexOf(entry.selection);
-                if (pos >= 0) {
-                    return {
-                        from: editor.posFromIndex(pos),
-                        to: editor.posFromIndex(pos + entry.selection.length),
-                        selection: entry.selection
-                    };
-                }
-                return null;
-            })
-            .filter(Boolean);
-
-        // Apply highlights
-        highlights.forEach(h => {
-            editor.markText(h.from, h.to, { className: 'highlight-mark' });
-        });
-
-        console.log('Loaded ' + highlights.length + ' highlights');
-    } catch (error) {
-        console.error('Load history error:', error);
+function addToRecentFiles(filename, content) {
+    // Initialize recent files array if needed
+    if (!appSettings.recentFiles) {
+        appSettings.recentFiles = [];
     }
+
+    // Remove if already exists (to move to top)
+    appSettings.recentFiles = appSettings.recentFiles.filter(f => f.name !== filename);
+
+    // Add to beginning
+    appSettings.recentFiles.unshift({
+        name: filename,
+        content: content,
+        timestamp: Date.now()
+    });
+
+    // Keep only last 10 files
+    appSettings.recentFiles = appSettings.recentFiles.slice(0, 10);
+
+    // Save and update menu
+    saveAppSettings();
+    updateRecentFilesMenu();
+}
+
+function updateRecentFilesMenu() {
+    const submenu = document.getElementById('recent-files-submenu');
+    if (!submenu) return;
+
+    // Clear existing items
+    submenu.innerHTML = '';
+
+    const recentFiles = appSettings.recentFiles || [];
+
+    if (recentFiles.length === 0) {
+        submenu.innerHTML = '<div class="menu-item disabled">No recent files</div>';
+        return;
+    }
+
+    recentFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'menu-item';
+        item.textContent = file.name;
+        item.title = file.name; // Full name on hover
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            loadFile(file.name, file.content);
+            document.getElementById('menu-dropdown').classList.remove('open');
+        });
+        submenu.appendChild(item);
+    });
 }
 
 async function translateHighlightedText(text) {

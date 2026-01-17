@@ -165,12 +165,12 @@
             text-align: center;
         }
 
-        /* Theme submenu */
-        .theme-submenu {
+        /* Submenus (theme, recent files) */
+        .has-submenu, .theme-submenu {
             position: relative;
         }
 
-        .theme-submenu .submenu {
+        .has-submenu .submenu, .theme-submenu .submenu {
             position: absolute;
             left: 100%;
             top: 0;
@@ -178,12 +178,32 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            min-width: 160px;
+            min-width: 200px;
+            max-width: 300px;
             display: none;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
-        .theme-submenu:hover .submenu {
+        .has-submenu:hover .submenu, .theme-submenu:hover .submenu {
             display: block;
+        }
+
+        .has-submenu .arrow {
+            margin-left: auto;
+            font-size: 10px;
+            opacity: 0.6;
+        }
+
+        .has-submenu .submenu .menu-item {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .has-submenu .submenu .menu-item.disabled {
+            opacity: 0.5;
+            cursor: default;
         }
 
         .theme-option {
@@ -754,10 +774,66 @@
             box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
         }
 
+        .setting-group input[type="password"],
+        .setting-group input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--fg);
+            font-size: 14px;
+            font-family: var(--font-mono);
+        }
+
+        .setting-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        .input-with-toggle {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-with-toggle input {
+            flex: 1;
+        }
+
+        .toggle-visibility {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--panel-bg);
+            color: var(--fg);
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toggle-visibility:hover {
+            background: var(--border);
+        }
+
+        .toggle-visibility.showing {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .setting-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 20px 0;
+        }
+
         .setting-hint {
             font-size: 12px;
-            color: #ef4444;
-            margin: 0;
+            color: var(--fg-muted);
+            margin-top: 6px;
             min-height: 18px;
         }
 
@@ -908,6 +984,14 @@
                     <span class="icon">&#128194;</span>
                     <span>Open File</span>
                 </div>
+                <div class="menu-item has-submenu" id="menu-recent-files">
+                    <span class="icon">&#128337;</span>
+                    <span>Recent Files</span>
+                    <span class="arrow">&#9656;</span>
+                    <div class="submenu" id="recent-files-submenu">
+                        <div class="menu-item disabled" id="no-recent-files">No recent files</div>
+                    </div>
+                </div>
                 <div class="menu-divider"></div>
                 <div class="menu-item theme-submenu">
                     <span class="icon">&#127912;</span>
@@ -973,6 +1057,17 @@
                 <button class="modal-close" id="settings-close">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="setting-group">
+                    <label for="openai-api-key">OpenAI API Key</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off">
+                        <button type="button" class="toggle-visibility" id="toggle-api-key" title="Show/hide">
+                            <span class="eye-icon">&#128065;</span>
+                        </button>
+                    </div>
+                    <p class="setting-hint">Your API key is stored locally and never sent anywhere except OpenAI.</p>
+                </div>
+                <div class="setting-divider"></div>
                 <div class="setting-group">
                     <label for="source-lang">Source Language</label>
                     <select id="source-lang">
