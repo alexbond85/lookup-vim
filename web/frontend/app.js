@@ -7,6 +7,15 @@ let highlights = [];
 let editor = null;
 let currentMessages = []; // Store current messages for conversation
 let lastFromCache = false; // Track if last translation was from cache
+let pendingSelection = null; // Store selection range for highlighting after translate
+
+// Input field state management
+// 'translate' - initial state or after editing selection, translates text
+// 'followup' - after translation, for follow-up questions
+// 'selection' - vim visual mode active, shows live selection
+let inputMode = 'translate';
+let isSelectionModified = false; // Track if user edited the selection text
+let originalSelectionText = ''; // Original selection before user edits
 
 // Initialize CodeMirror when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -95,71 +104,127 @@ function initEditor() {
 // Selection preview functions for live selection UX
 function updateSelectionPreview(text) {
     const input = document.getElementById('chat-input');
-    const translateBtn = document.getElementById('inline-translate-btn');
+    const sendBtn = document.getElementById('send-btn');
 
     if (text && text.trim()) {
         input.value = text;
         input.classList.add('has-selection');
-        input.disabled = false;
         input.placeholder = 'Selected text...';
-        translateBtn.style.display = 'block';
+
+        // Set mode to selection, reset modified flag
+        inputMode = 'selection';
+        isSelectionModified = false;
+        originalSelectionText = text;
+
+        // Update button
+        updateSendButton();
+
+        // Store selection range for highlighting after translate
+        pendingSelection = {
+            from: editor.getCursor('anchor'),
+            to: editor.getCursor('head'),
+            text: text
+        };
+
+        // Auto-resize textarea
+        autoResizeTextarea(input);
     }
 }
 
 function clearSelectionPreview() {
     const input = document.getElementById('chat-input');
-    const translateBtn = document.getElementById('inline-translate-btn');
 
-    if (input.classList.contains('has-selection')) {
+    if (inputMode === 'selection') {
         input.value = '';
         input.classList.remove('has-selection');
-        input.placeholder = 'Ask a follow-up question...';
-        translateBtn.style.display = 'none';
+        pendingSelection = null;
+        isSelectionModified = false;
+        originalSelectionText = '';
 
-        // Keep input enabled if there are messages (for follow-up questions)
-        if (currentMessages.length === 0) {
-            input.disabled = true;
+        // Switch to followup mode if we have translations, otherwise translate mode
+        if (currentMessages.length > 0) {
+            inputMode = 'followup';
+            input.placeholder = 'Ask a follow-up question...';
+        } else {
+            inputMode = 'translate';
+            input.placeholder = 'Enter text to translate...';
         }
+
+        updateSendButton();
+        autoResizeTextarea(input);
     }
+}
+
+// Update send button based on current mode
+function updateSendButton() {
+    const sendBtn = document.getElementById('send-btn');
+    const input = document.getElementById('chat-input');
+    const hasText = input.value.trim().length > 0;
+
+    if (inputMode === 'followup' && !hasText) {
+        // Follow-up mode with empty input
+        sendBtn.textContent = 'Send';
+        sendBtn.classList.add('followup-mode');
+        sendBtn.disabled = true;
+    } else if (inputMode === 'followup' && hasText) {
+        // Follow-up mode with text
+        sendBtn.textContent = 'Send';
+        sendBtn.classList.add('followup-mode');
+        sendBtn.disabled = false;
+    } else {
+        // Translate mode (selection or free text)
+        sendBtn.textContent = 'Translate';
+        sendBtn.classList.remove('followup-mode');
+        sendBtn.disabled = !hasText;
+    }
+}
+
+// Auto-resize textarea to fit content
+function autoResizeTextarea(textarea) {
+    // Reset height to auto to get correct scrollHeight
+    textarea.style.height = 'auto';
+    // Set height to scrollHeight, capped by max-height in CSS
+    const newHeight = Math.max(48, Math.min(textarea.scrollHeight, 200));
+    textarea.style.height = newHeight + 'px';
 }
 
 async function translateFromInput() {
     const input = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
     const text = input.value.trim();
 
     if (!text) return;
 
     console.log('Translating from input:', text);
-
-    // Clear selection state
-    input.classList.remove('has-selection');
-    input.placeholder = 'Ask a follow-up question...';
-    document.getElementById('inline-translate-btn').style.display = 'none';
+    console.log('Input mode:', inputMode, 'Selection modified:', isSelectionModified);
 
     // Show loading state
-    const btn = document.getElementById('inline-translate-btn');
-    const translateToolbarBtn = document.getElementById('translate-btn');
-    const originalText = translateToolbarBtn.innerHTML;
-    translateToolbarBtn.innerHTML = 'Translating...';
-    translateToolbarBtn.disabled = true;
+    const originalBtnText = sendBtn.textContent;
+    sendBtn.textContent = 'Translating...';
+    sendBtn.disabled = true;
 
-    // Get context from editor if possible
+    // Determine if we should include context
+    // Only include context if in selection mode AND text wasn't modified
     let sentence = '';
     let paragraph = '';
 
-    try {
-        const cursor = editor.getCursor();
-        sentence = getSentenceAtCursor(editor, cursor);
-        paragraph = extractParagraphFromEditor(editor, cursor.line);
-    } catch (e) {
-        console.log('Could not get context:', e);
+    const useContext = (inputMode === 'selection' && !isSelectionModified);
+
+    if (useContext && pendingSelection) {
+        try {
+            const cursor = pendingSelection.from;
+            sentence = getSentenceAtCursor(editor, cursor);
+            paragraph = extractParagraphFromEditor(editor, cursor.line);
+        } catch (e) {
+            console.log('Could not get context:', e);
+        }
     }
 
     // Prepare request data
     const requestData = {
         selection: text,
-        phrase: sentence || "",
-        paragraph: paragraph || "",
+        phrase: useContext ? (sentence || "") : "",
+        paragraph: useContext ? (paragraph || "") : "",
         file: currentFile || ""
     };
 
@@ -184,6 +249,22 @@ async function translateFromInput() {
 
         console.log('API response:', data);
 
+        // Add highlight if we have stored selection range and text wasn't modified
+        if (pendingSelection && !isSelectionModified) {
+            // Normalize from/to order (anchor might be after head)
+            let from = pendingSelection.from;
+            let to = pendingSelection.to;
+            if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                [from, to] = [to, from];
+            }
+            editor.markText(from, to, { className: 'highlight-mark' });
+            highlights.push({ from, to, selection: pendingSelection.text });
+            console.log('Added highlight from pending selection');
+        }
+
+        // Clear pending selection
+        pendingSelection = null;
+
         // Store messages and cache state
         currentMessages = data.messages;
         lastFromCache = data.from_cache || false;
@@ -191,18 +272,26 @@ async function translateFromInput() {
         // Display with context buttons and cache indicator
         displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph, data.from_cache);
 
-        // Clear input and enable for follow-up questions
+        // Switch to follow-up mode
         input.value = '';
-        input.disabled = false;
+        input.classList.remove('has-selection');
+        inputMode = 'followup';
+        isSelectionModified = false;
+        originalSelectionText = '';
+        input.placeholder = 'Ask a follow-up question...';
 
-        console.log('Translation received');
+        // Reset textarea height and update button
+        autoResizeTextarea(input);
+        updateSendButton();
+
+        console.log('Translation received, switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
         alert('Translation error: ' + error.message);
     } finally {
-        // Reset button
-        translateToolbarBtn.innerHTML = originalText;
-        translateToolbarBtn.disabled = false;
+        // Reset button state
+        sendBtn.textContent = originalBtnText;
+        updateSendButton();
     }
 }
 
@@ -438,11 +527,6 @@ function updateThemeOptions(activeTheme) {
 }
 
 function setupEventListeners() {
-    // Translate button
-    document.getElementById('translate-btn').addEventListener('click', function() {
-        handleLookup();
-    });
-
     // Drag and drop
     const editorPane = document.getElementById('editor-pane');
 
@@ -469,21 +553,61 @@ function setupEventListeners() {
         }
     });
 
-    // Chat input - handle Enter key for both selection translation and conversation
+    // Chat input setup
     const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    // Handle keyboard input - Enter to submit, Shift+Enter for newline
     chatInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (chatInput.classList.contains('has-selection')) {
-                translateFromInput();
-            } else {
-                handleConversation();
-            }
+            handleSubmit();
         }
     });
 
-    // Inline translate button click handler
-    document.getElementById('inline-translate-btn').addEventListener('click', translateFromInput);
+    // Track text changes for auto-resize and mode detection
+    chatInput.addEventListener('input', function() {
+        // Auto-resize textarea
+        autoResizeTextarea(chatInput);
+
+        // Detect if user modified selection text
+        if (inputMode === 'selection' && originalSelectionText) {
+            if (chatInput.value !== originalSelectionText) {
+                isSelectionModified = true;
+                // When user edits selection, switch to translate mode
+                inputMode = 'translate';
+                chatInput.classList.remove('has-selection');
+                chatInput.placeholder = 'Enter text to translate...';
+                // Clear pending selection since user is typing new text
+                pendingSelection = null;
+            }
+        }
+
+        // Update button state based on content
+        updateSendButton();
+    });
+
+    // Send button click handler
+    sendBtn.addEventListener('click', handleSubmit);
+
+    // Initial button state
+    updateSendButton();
+}
+
+// Unified submit handler
+function handleSubmit() {
+    const chatInput = document.getElementById('chat-input');
+    const text = chatInput.value.trim();
+
+    if (!text) return;
+
+    if (inputMode === 'followup') {
+        // Send as follow-up question
+        handleConversation();
+    } else {
+        // Translate mode (selection or free text)
+        translateFromInput();
+    }
 }
 
 async function handleFileSelect(e) {
@@ -538,12 +662,6 @@ async function translateHighlightedText(text) {
     // Translate text from a clicked highlight (will be served from cache)
     console.log('Translating highlighted text:', text);
 
-    // Show loading state
-    const btn = document.getElementById('translate-btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = 'Translating...';
-    btn.disabled = true;
-
     // Prepare request data - no context needed, cache will handle it
     const requestData = {
         selection: text,
@@ -581,17 +699,17 @@ async function translateHighlightedText(text) {
         // Display (no context buttons since no phrase/paragraph, but show cache indicator)
         displayMessagesWithContext(data.messages, false, false, data.from_cache);
 
-        // Enable chat input
-        document.getElementById('chat-input').disabled = false;
+        // Switch to follow-up mode
+        const input = document.getElementById('chat-input');
+        input.value = '';
+        inputMode = 'followup';
+        input.placeholder = 'Ask a follow-up question...';
+        updateSendButton();
 
-        console.log('Translation received (from highlight)');
+        console.log('Translation received (from highlight), switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
         alert('Translation error: ' + error.message + '\n\nCheck console for details');
-    } finally {
-        // Reset button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
     }
 }
 
@@ -616,14 +734,7 @@ async function handleLookup() {
     }
 
     console.log('Selected text:', selection);
-
     console.log('Looking up:', selection);
-
-    // Show loading state
-    const btn = document.getElementById('translate-btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = 'Translating...';
-    btn.disabled = true;
 
     // Get context - use the selection cursor position, not current cursor
     const selStart = editor.getCursor('start');
@@ -682,17 +793,21 @@ async function handleLookup() {
         // Display with context buttons and cache indicator
         displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph, data.from_cache);
 
-        // Enable chat input
-        document.getElementById('chat-input').disabled = false;
+        // Switch to follow-up mode
+        const input = document.getElementById('chat-input');
+        input.value = '';
+        input.classList.remove('has-selection');
+        inputMode = 'followup';
+        isSelectionModified = false;
+        originalSelectionText = '';
+        input.placeholder = 'Ask a follow-up question...';
+        autoResizeTextarea(input);
+        updateSendButton();
 
-        console.log('Translation received');
+        console.log('Translation received, switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
         alert('Translation error: ' + error.message + '\n\nCheck console for details');
-    } finally {
-        // Reset button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
     }
 }
 
@@ -994,4 +1109,10 @@ if (typeof window !== 'undefined') {
     window.displayMessages = displayMessages;
     window.translatePhrase = translatePhrase;
     window.translateParagraph = translateParagraph;
+    window.updateSelectionPreview = updateSelectionPreview;
+    window.clearSelectionPreview = clearSelectionPreview;
+    window.translateFromInput = translateFromInput;
+    window.updateSendButton = updateSendButton;
+    window.autoResizeTextarea = autoResizeTextarea;
+    window.handleSubmit = handleSubmit;
 }

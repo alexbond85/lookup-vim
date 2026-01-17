@@ -40,6 +40,9 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
 
     # Update session - store phrase and paragraph for later
     session = sessions.get_or_create(x_session_id)
+    # Reset conversation for new translation (match CLI behavior)
+    # Follow-up questions are meant for the current translation only
+    session.reset_conversation()
     session.current_phrase = request.phrase
     session.current_paragraph = request.paragraph
     session.reset_context_flags()  # New selection, reset tracking

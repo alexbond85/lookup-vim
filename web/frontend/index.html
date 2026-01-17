@@ -194,27 +194,6 @@
             text-align: center;
         }
 
-        #translate-btn {
-            padding: 8px 16px;
-            border: 1px solid var(--accent);
-            border-radius: 6px;
-            background: var(--accent);
-            color: white;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        #translate-btn:hover {
-            background: var(--accent-hover);
-            border-color: var(--accent-hover);
-        }
-
-        #translate-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
         #vim-mode {
             color: var(--fg);
             opacity: 0.7;
@@ -810,19 +789,24 @@
             background: var(--message-bg);
             display: flex;
             gap: 8px;
-            align-items: center;
+            align-items: flex-end;
         }
 
         #chat-input {
             flex: 1;
             padding: 12px 16px;
             border: 1px solid var(--border);
-            border-radius: 24px;
+            border-radius: 16px;
             font-size: 14px;
             font-family: inherit;
             background: var(--input-bg);
             color: var(--fg);
             transition: border-color 0.15s, box-shadow 0.15s;
+            resize: none;
+            min-height: 48px;
+            max-height: 200px;
+            line-height: 1.5;
+            overflow-y: auto;
         }
 
         #chat-input.has-selection {
@@ -844,13 +828,14 @@
         #chat-input:disabled {
             background: var(--panel-bg);
             cursor: not-allowed;
+            opacity: 0.7;
         }
 
-        /* Inline translate button */
-        #inline-translate-btn {
-            padding: 10px 16px;
+        /* Send/Translate button - always visible */
+        #send-btn {
+            padding: 12px 20px;
             border: 1px solid var(--accent);
-            border-radius: 20px;
+            border-radius: 16px;
             background: var(--accent);
             color: white;
             cursor: pointer;
@@ -858,16 +843,30 @@
             font-weight: 500;
             white-space: nowrap;
             transition: all 0.15s;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        #inline-translate-btn:hover {
+        #send-btn:hover:not(:disabled) {
             background: var(--accent-hover);
             border-color: var(--accent-hover);
         }
 
-        #inline-translate-btn:disabled {
-            opacity: 0.6;
+        #send-btn:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        #send-btn.followup-mode {
+            background: var(--panel-bg);
+            border-color: var(--border);
+            color: var(--fg);
+        }
+
+        #send-btn.followup-mode:hover:not(:disabled) {
+            background: var(--border);
         }
     </style>
 </head>
@@ -903,7 +902,6 @@
             </div>
         </div>
         <span id="filename">No file loaded</span>
-        <button id="translate-btn">Translate Selection</button>
         <span id="vim-mode">NORMAL</span>
     </div>
 
@@ -924,13 +922,12 @@
                 </div>
             </div>
             <div id="chat-input-container">
-                <input
-                    type="text"
+                <textarea
                     id="chat-input"
-                    placeholder="Ask a follow-up question..."
-                    disabled
-                />
-                <button id="inline-translate-btn" style="display: none;">Translate</button>
+                    placeholder="Enter text to translate..."
+                    rows="1"
+                ></textarea>
+                <button id="send-btn">Translate</button>
             </div>
         </div>
     </div>

@@ -30,6 +30,12 @@ class Session:
         self.phrase_translated = False
         self.paragraph_translated = False
 
+    def reset_conversation(self):
+        """Reset conversation for new translation (match CLI behavior)"""
+        self.conversation_service.reset()
+        # Clear Q&A messages but keep structure for new translation
+        self.messages = []
+
     def add_translation(self, query: str, result: LookupResult):
         """Add translation to chat history"""
         # Format like CLI app does
