@@ -33,8 +33,10 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
         file=request.file or ""
     )
 
-    # Use existing LookupService
-    result = sessions.factory.lookup_service.lookup(selection_data)
+    # Use existing LookupService - returns LookupResponse with from_cache
+    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+    result = lookup_response.result
+    from_cache = lookup_response.from_cache
 
     # Update session - store phrase and paragraph for later
     session = sessions.get_or_create(x_session_id)
@@ -57,12 +59,14 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
     print(f"DEBUG context flags:")
     print(f"  has_phrase: {has_phrase}")
     print(f"  has_paragraph: {has_paragraph}")
+    print(f"  from_cache: {from_cache}")
 
     # Return chat messages with context info
     return {
         "messages": session.messages,
         "has_phrase": has_phrase,
-        "has_paragraph": has_paragraph
+        "has_paragraph": has_paragraph,
+        "from_cache": from_cache
     }
 
 
@@ -82,7 +86,10 @@ async def lookup_phrase(x_session_id: str = Header(...)):
         file=""
     )
 
-    result = sessions.factory.lookup_service.lookup(selection_data)
+    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+    result = lookup_response.result
+    from_cache = lookup_response.from_cache
+
     session.add_translation(session.current_phrase, result)
     session.phrase_translated = True  # Mark as translated
 
@@ -96,7 +103,8 @@ async def lookup_phrase(x_session_id: str = Header(...)):
     return {
         "messages": session.messages,
         "has_phrase": False,  # Already translated
-        "has_paragraph": has_paragraph
+        "has_paragraph": has_paragraph,
+        "from_cache": from_cache
     }
 
 
@@ -116,7 +124,10 @@ async def lookup_paragraph(x_session_id: str = Header(...)):
         file=""
     )
 
-    result = sessions.factory.lookup_service.lookup(selection_data)
+    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+    result = lookup_response.result
+    from_cache = lookup_response.from_cache
+
     session.add_translation(session.current_paragraph, result)
     session.paragraph_translated = True  # Mark as translated
 
@@ -130,7 +141,8 @@ async def lookup_paragraph(x_session_id: str = Header(...)):
     return {
         "messages": session.messages,
         "has_phrase": has_phrase,
-        "has_paragraph": False  # Already translated
+        "has_paragraph": False,  # Already translated
+        "from_cache": from_cache
     }
 
 

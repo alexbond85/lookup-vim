@@ -6,6 +6,7 @@ let currentFile = null;
 let highlights = [];
 let editor = null;
 let currentMessages = []; // Store current messages for conversation
+let lastFromCache = false; // Track if last translation was from cache
 
 // Initialize CodeMirror when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -72,7 +73,137 @@ function initEditor() {
         }
     });
 
+    // Track vim selection in real-time for live preview
+    editor.on('cursorActivity', function() {
+        const vimState = editor.state.vim;
+        if (vimState && vimState.visualMode) {
+            // Get selection in visual mode
+            const start = editor.getCursor('anchor');
+            const end = editor.getCursor('head');
+            const selection = editor.getRange(start, end);
+            if (selection && selection.trim()) {
+                updateSelectionPreview(selection);
+            }
+        } else {
+            clearSelectionPreview();
+        }
+    });
+
     console.log('Editor initialized with vim mode and theme:', savedTheme);
+}
+
+// Selection preview functions for live selection UX
+function updateSelectionPreview(text) {
+    const input = document.getElementById('chat-input');
+    const translateBtn = document.getElementById('inline-translate-btn');
+
+    if (text && text.trim()) {
+        input.value = text;
+        input.classList.add('has-selection');
+        input.disabled = false;
+        input.placeholder = 'Selected text...';
+        translateBtn.style.display = 'block';
+    }
+}
+
+function clearSelectionPreview() {
+    const input = document.getElementById('chat-input');
+    const translateBtn = document.getElementById('inline-translate-btn');
+
+    if (input.classList.contains('has-selection')) {
+        input.value = '';
+        input.classList.remove('has-selection');
+        input.placeholder = 'Ask a follow-up question...';
+        translateBtn.style.display = 'none';
+
+        // Keep input enabled if there are messages (for follow-up questions)
+        if (currentMessages.length === 0) {
+            input.disabled = true;
+        }
+    }
+}
+
+async function translateFromInput() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    console.log('Translating from input:', text);
+
+    // Clear selection state
+    input.classList.remove('has-selection');
+    input.placeholder = 'Ask a follow-up question...';
+    document.getElementById('inline-translate-btn').style.display = 'none';
+
+    // Show loading state
+    const btn = document.getElementById('inline-translate-btn');
+    const translateToolbarBtn = document.getElementById('translate-btn');
+    const originalText = translateToolbarBtn.innerHTML;
+    translateToolbarBtn.innerHTML = 'Translating...';
+    translateToolbarBtn.disabled = true;
+
+    // Get context from editor if possible
+    let sentence = '';
+    let paragraph = '';
+
+    try {
+        const cursor = editor.getCursor();
+        sentence = getSentenceAtCursor(editor, cursor);
+        paragraph = extractParagraphFromEditor(editor, cursor.line);
+    } catch (e) {
+        console.log('Could not get context:', e);
+    }
+
+    // Prepare request data
+    const requestData = {
+        selection: text,
+        phrase: sentence || "",
+        paragraph: paragraph || "",
+        file: currentFile || ""
+    };
+
+    console.log('Sending to API:', requestData);
+
+    // Call API
+    try {
+        const response = await fetch('/api/lookup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': SESSION_ID
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Server error: ' + response.status);
+        }
+
+        const data = await response.json();
+
+        console.log('API response:', data);
+
+        // Store messages and cache state
+        currentMessages = data.messages;
+        lastFromCache = data.from_cache || false;
+
+        // Display with context buttons and cache indicator
+        displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph, data.from_cache);
+
+        // Clear input and enable for follow-up questions
+        input.value = '';
+        input.disabled = false;
+
+        console.log('Translation received');
+    } catch (error) {
+        console.error('Lookup error:', error);
+        alert('Translation error: ' + error.message);
+    } finally {
+        // Reset button
+        translateToolbarBtn.innerHTML = originalText;
+        translateToolbarBtn.disabled = false;
+    }
 }
 
 function setupResizeHandle() {
@@ -338,14 +469,21 @@ function setupEventListeners() {
         }
     });
 
-    // Chat input - handle Enter key
+    // Chat input - handle Enter key for both selection translation and conversation
     const chatInput = document.getElementById('chat-input');
     chatInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            handleConversation();
+            if (chatInput.classList.contains('has-selection')) {
+                translateFromInput();
+            } else {
+                handleConversation();
+            }
         }
     });
+
+    // Inline translate button click handler
+    document.getElementById('inline-translate-btn').addEventListener('click', translateFromInput);
 }
 
 async function handleFileSelect(e) {
@@ -434,12 +572,14 @@ async function translateHighlightedText(text) {
         const data = await response.json();
 
         console.log('API response (from highlight):', data);
+        console.log('from_cache:', data.from_cache);
 
-        // Store messages for conversation
+        // Store messages and cache state for conversation
         currentMessages = data.messages;
+        lastFromCache = data.from_cache || false;
 
-        // Display (no context buttons since no phrase/paragraph)
-        displayMessagesWithContext(data.messages, false, false);
+        // Display (no context buttons since no phrase/paragraph, but show cache indicator)
+        displayMessagesWithContext(data.messages, false, false, data.from_cache);
 
         // Enable chat input
         document.getElementById('chat-input').disabled = false;
@@ -526,7 +666,7 @@ async function handleLookup() {
         const data = await response.json();
 
         console.log('API response:', data);
-        console.log('has_phrase:', data.has_phrase, 'has_paragraph:', data.has_paragraph);
+        console.log('has_phrase:', data.has_phrase, 'has_paragraph:', data.has_paragraph, 'from_cache:', data.from_cache);
 
         // Add highlight
         const from = editor.getCursor('start');
@@ -535,11 +675,12 @@ async function handleLookup() {
 
         highlights.push({ from, to, selection });
 
-        // Store messages for conversation
+        // Store messages and cache state for conversation
         currentMessages = data.messages;
+        lastFromCache = data.from_cache || false;
 
-        // Display with context buttons
-        displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph);
+        // Display with context buttons and cache indicator
+        displayMessagesWithContext(data.messages, data.has_phrase, data.has_paragraph, data.from_cache);
 
         // Enable chat input
         document.getElementById('chat-input').disabled = false;
@@ -591,7 +732,8 @@ async function translatePhrase() {
 
         const data = await response.json();
         currentMessages = data.messages;
-        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
+        lastFromCache = data.from_cache || false;
+        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false, data.from_cache);
     } catch (error) {
         console.error('Phrase translation error:', error);
         alert('Error: ' + error.message);
@@ -619,7 +761,8 @@ async function translateParagraph() {
 
         const data = await response.json();
         currentMessages = data.messages;
-        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false);
+        lastFromCache = data.from_cache || false;
+        displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false, data.from_cache);
     } catch (error) {
         console.error('Paragraph translation error:', error);
         alert('Error: ' + error.message);
@@ -641,14 +784,18 @@ function renderMarkdown(text) {
     return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
-function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
+function displayMessagesWithContext(messages, hasPhrase, hasParagraph, fromCache) {
     const container = document.getElementById('chat-messages');
     container.innerHTML = '';
+
+    // Use global lastFromCache if fromCache not provided (for conversation updates)
+    const showCache = fromCache !== undefined ? fromCache : lastFromCache;
 
     console.log('displayMessagesWithContext called:', {
         messageCount: messages.length,
         hasPhrase: hasPhrase,
-        hasParagraph: hasParagraph
+        hasParagraph: hasParagraph,
+        fromCache: showCache
     });
 
     messages.forEach((msg, idx) => {
@@ -656,9 +803,16 @@ function displayMessagesWithContext(messages, hasPhrase, hasParagraph) {
         div.className = 'message ' + msg.type;
 
         if (msg.type === 'translation') {
+            // Show cache badge only on the last translation if from cache
+            const isLastMsg = idx === messages.length - 1;
+            const cacheBadge = (isLastMsg && showCache)
+                ? '<span class="cache-badge">&#9889; Cached</span>'
+                : '';
+
             div.innerHTML =
                 '<div class="query-header">' +
                     '<span class="query-text">' + escapeHtml(msg.data.query) + '</span>' +
+                    cacheBadge +
                 '</div>' +
                 '<div class="translation-text">' + escapeHtml(msg.data.translation) + '</div>' +
                 '<div class="explanations">' + renderMarkdown(msg.data.explanations) + '</div>';

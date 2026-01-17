@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import TypeVar
 
 from lookup.cache.base import CacheBase
 from lookup.dictionary.service import DictionaryService
@@ -23,6 +25,14 @@ from lookup.translation.service import TranslationService
 logger = logging.getLogger(__name__)
 
 LookupResult = WordResult | ConjugationResult | TranslationResult
+T = TypeVar("T")
+
+
+@dataclass
+class LookupResponse:
+    """Wrapper for lookup result with metadata"""
+    result: LookupResult | None
+    from_cache: bool = False
 
 
 class LookupService:
@@ -84,19 +94,41 @@ class LookupService:
 
         self._chain_head = cache_handler
 
+    def _is_cached(self, selection_data: SelectionData) -> bool:
+        """Check if selection is already in cache"""
+        selection = selection_data.selection.strip()
+        phrase = selection_data.phrase.strip()
+
+        simple_key = self._cache.make_simple_key(selection)
+        if self._cache.has(simple_key):
+            return True
+
+        if phrase:
+            context_key = self._cache.make_context_key(selection, phrase)
+            if self._cache.has(context_key):
+                return True
+
+        return False
+
     def lookup(
         self, selection_data: SelectionData, handler: str | None = None
-    ) -> LookupResult | None:
+    ) -> LookupResponse:
         """
         Perform lookup using chain or specific handler.
 
         Args:
             handler: Optional handler name ('dictionary', 'translation').
                     If None, uses automatic chain.
+
+        Returns:
+            LookupResponse with result and from_cache flag.
         """
         selection = selection_data.selection.strip()
         if not selection:
-            return None
+            return LookupResponse(result=None, from_cache=False)
+
+        # Check cache status before processing
+        from_cache = self._is_cached(selection_data)
 
         # Direct handler invocation
         if handler is not None:
@@ -106,9 +138,12 @@ class LookupService:
                     f"Handler '{handler}' not found. Available: {available}"
                 )
             logger.info(f"Using handler: {handler}")
-            return self._handlers[handler].process(selection_data)
+            result = self._handlers[handler].process(selection_data)
+            return LookupResponse(result=result, from_cache=from_cache)
 
         # Default: use the chain
         if self._chain_head is None:
-            return None
-        return self._chain_head.handle(selection_data)
+            return LookupResponse(result=None, from_cache=False)
+
+        result = self._chain_head.handle(selection_data)
+        return LookupResponse(result=result, from_cache=from_cache)

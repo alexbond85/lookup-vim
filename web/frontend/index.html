@@ -503,40 +503,7 @@
             }
         }
 
-        /* Chat input */
-        #chat-input-container {
-            padding: 16px;
-            border-top: 1px solid var(--border);
-            background: var(--message-bg);
-        }
-
-        #chat-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            font-size: 14px;
-            font-family: inherit;
-            background: var(--input-bg);
-            color: var(--fg);
-            transition: border-color 0.15s, box-shadow 0.15s;
-        }
-
-        #chat-input::placeholder {
-            color: var(--fg);
-            opacity: 0.5;
-        }
-
-        #chat-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
-        }
-
-        #chat-input:disabled {
-            background: var(--panel-bg);
-            cursor: not-allowed;
-        }
+        /* Chat input - styles moved to bottom with selection styles */
 
         .empty-state {
             display: flex;
@@ -816,6 +783,92 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        /* Cache indicator badge */
+        .cache-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-radius: 12px;
+            color: #92400e;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        body.dark-theme .cache-badge {
+            background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+            color: #fef3c7;
+        }
+
+        /* Chat input container - flex layout for button */
+        #chat-input-container {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            background: var(--message-bg);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            font-size: 14px;
+            font-family: inherit;
+            background: var(--input-bg);
+            color: var(--fg);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        #chat-input.has-selection {
+            border-color: var(--accent);
+            background: var(--user-bg);
+        }
+
+        #chat-input::placeholder {
+            color: var(--fg);
+            opacity: 0.5;
+        }
+
+        #chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        #chat-input:disabled {
+            background: var(--panel-bg);
+            cursor: not-allowed;
+        }
+
+        /* Inline translate button */
+        #inline-translate-btn {
+            padding: 10px 16px;
+            border: 1px solid var(--accent);
+            border-radius: 20px;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+
+        #inline-translate-btn:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        #inline-translate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -877,6 +930,7 @@
                     placeholder="Ask a follow-up question..."
                     disabled
                 />
+                <button id="inline-translate-btn" style="display: none;">Translate</button>
             </div>
         </div>
     </div>
