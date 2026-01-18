@@ -781,18 +781,20 @@
         }
 
         .modal-content {
-            background: var(--message-bg);
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            min-width: 360px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            min-width: 340px;
             max-width: 90%;
-            animation: modalSlideIn 0.2s ease-out;
+            font-family: var(--font-mono);
+            animation: modalSlideIn 0.15s ease-out;
         }
 
         @keyframes modalSlideIn {
             from {
                 opacity: 0;
-                transform: translateY(-20px);
+                transform: translateY(-10px);
             }
             to {
                 opacity: 1;
@@ -804,86 +806,108 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
+            padding: 12px 16px;
             border-bottom: 1px solid var(--border);
+            background: var(--panel-bg);
         }
 
         .modal-header h2 {
             margin: 0;
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 500;
             color: var(--fg);
+            font-family: var(--font-mono);
+            text-transform: lowercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-header h2::before {
+            content: "# ";
+            color: var(--fg-muted);
         }
 
         .modal-close {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 14px;
             cursor: pointer;
-            color: var(--fg);
-            opacity: 0.6;
-            padding: 0;
+            color: var(--fg-muted);
+            padding: 2px 6px;
             line-height: 1;
+            font-family: var(--font-mono);
         }
 
         .modal-close:hover {
-            opacity: 1;
+            color: var(--fg);
+            background: var(--border);
+            border-radius: 2px;
         }
 
         .modal-body {
-            padding: 20px;
+            padding: 16px;
         }
 
         .setting-group {
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
 
         .setting-group label {
             display: block;
-            font-size: 14px;
+            font-size: 11px;
             font-weight: 500;
-            color: var(--fg);
-            margin-bottom: 8px;
+            color: var(--fg-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: var(--font-mono);
         }
 
         .setting-group select {
             width: 100%;
-            padding: 10px 12px;
+            padding: 8px 10px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 2px;
             background: var(--input-bg);
             color: var(--fg);
-            font-size: 14px;
+            font-size: 13px;
+            font-family: var(--font-mono);
             cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M3 4l3 3 3-3'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
         }
 
         .setting-group select:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
         }
 
         .setting-group input[type="password"],
         .setting-group input[type="text"] {
             width: 100%;
-            padding: 10px 12px;
+            padding: 8px 10px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 2px;
             background: var(--input-bg);
             color: var(--fg);
-            font-size: 14px;
+            font-size: 13px;
             font-family: var(--font-mono);
         }
 
         .setting-group input:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+        }
+
+        .setting-group input::placeholder {
+            color: var(--fg-muted);
+            opacity: 0.6;
         }
 
         .input-with-toggle {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .input-with-toggle input {
@@ -891,13 +915,14 @@
         }
 
         .toggle-visibility {
-            padding: 8px 12px;
+            padding: 6px 10px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 2px;
             background: var(--panel-bg);
-            color: var(--fg);
+            color: var(--fg-muted);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 12px;
+            font-family: var(--font-mono);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -905,6 +930,7 @@
 
         .toggle-visibility:hover {
             background: var(--border);
+            color: var(--fg);
         }
 
         .toggle-visibility.showing {
@@ -916,33 +942,37 @@
         .setting-divider {
             height: 1px;
             background: var(--border);
-            margin: 20px 0;
+            margin: 16px 0;
         }
 
         .setting-hint {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--fg-muted);
-            margin-top: 6px;
-            min-height: 18px;
+            margin-top: 4px;
+            min-height: 16px;
+            font-family: var(--font-mono);
         }
 
         .modal-footer {
             display: flex;
             justify-content: flex-end;
-            gap: 12px;
-            padding: 16px 20px;
+            gap: 8px;
+            padding: 12px 16px;
             border-top: 1px solid var(--border);
+            background: var(--panel-bg);
         }
 
         .btn-secondary {
-            padding: 8px 16px;
+            padding: 6px 14px;
             border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--panel-bg);
+            border-radius: 2px;
+            background: transparent;
             color: var(--fg);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
+            font-family: var(--font-mono);
+            text-transform: lowercase;
         }
 
         .btn-secondary:hover {
@@ -950,14 +980,16 @@
         }
 
         .btn-primary {
-            padding: 8px 16px;
+            padding: 6px 14px;
             border: 1px solid var(--accent);
-            border-radius: 6px;
+            border-radius: 2px;
             background: var(--accent);
             color: white;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
+            font-family: var(--font-mono);
+            text-transform: lowercase;
         }
 
         .btn-primary:hover {
@@ -1065,6 +1097,124 @@
             opacity: 0.4;
             cursor: not-allowed;
         }
+
+        /* Help button */
+        #help-btn {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--fg-muted);
+            cursor: pointer;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        #help-btn:hover {
+            background: var(--panel-bg);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* Help modal - wider for ASCII art */
+        #help-modal .modal-content {
+            min-width: 480px;
+            max-width: 520px;
+        }
+
+        #help-modal .modal-body {
+            padding: 0;
+        }
+
+        .help-ascii {
+            background: var(--panel-bg);
+            padding: 12px 16px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            line-height: 1.4;
+            color: var(--syn-comment);
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            white-space: pre;
+        }
+
+        .help-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .help-section:last-child {
+            border-bottom: none;
+        }
+
+        .help-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--fg-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-family: var(--font-mono);
+        }
+
+        .help-section-title::before {
+            content: "## ";
+            color: var(--syn-comment);
+        }
+
+        .help-row {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .help-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .help-key {
+            min-width: 80px;
+            color: var(--syn-function);
+            font-weight: 500;
+        }
+
+        .help-desc {
+            color: var(--fg);
+            flex: 1;
+        }
+
+        .help-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0;
+        }
+
+        .help-tip {
+            padding: 10px 16px;
+            font-size: 11px;
+            color: var(--fg-muted);
+            font-family: var(--font-mono);
+            background: var(--panel-bg);
+            font-style: italic;
+        }
+
+        .help-tip code {
+            background: var(--bg);
+            padding: 1px 4px;
+            border-radius: 2px;
+            color: var(--syn-string);
+            font-style: normal;
+        }
     </style>
 </head>
 <body>
@@ -1133,6 +1283,7 @@
                 </div>
             </div>
         </div>
+        <button id="help-btn">?</button>
         <span id="filename">No file loaded</span>
         <span id="vim-mode">NORMAL</span>
     </div>
@@ -1148,8 +1299,8 @@
             <div id="chat-messages">
                 <div class="empty-state">
                     <div>
-                        <div>Select text and click "Translate" button</div>
-                        <div class="help-text">Or use vim: press <code>v</code> to select, then type <code>:t</code> or <code>:tr</code></div>
+                        <div>select text with mouse or vim, press <code>Enter</code></div>
+                        <div class="help-text">click <code>?</code> for help</div>
                     </div>
                 </div>
             </div>
@@ -1168,23 +1319,23 @@
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="modal-close" id="settings-close">&times;</button>
+                <h2>settings</h2>
+                <button class="modal-close" id="settings-close">[x]</button>
             </div>
             <div class="modal-body">
                 <div class="setting-group">
-                    <label for="openai-api-key">OpenAI API Key</label>
+                    <label for="openai-api-key">api key</label>
                     <div class="input-with-toggle">
                         <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off">
                         <button type="button" class="toggle-visibility" id="toggle-api-key" title="Show/hide">
-                            <span class="eye-icon">&#128065;</span>
+                            <span class="eye-icon">*</span>
                         </button>
                     </div>
-                    <p class="setting-hint">Your API key is stored locally and never sent anywhere except OpenAI.</p>
+                    <p class="setting-hint">stored locally, sent only to openai</p>
                 </div>
                 <div class="setting-divider"></div>
                 <div class="setting-group">
-                    <label for="source-lang">Source Language</label>
+                    <label for="source-lang">source</label>
                     <select id="source-lang">
                         <option value="French">French</option>
                         <option value="German">German</option>
@@ -1194,10 +1345,10 @@
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label for="target-lang">Target Language</label>
+                    <label for="target-lang">target</label>
                     <select id="target-lang">
-                        <option value="Russian">Russian</option>
                         <option value="English">English</option>
+                        <option value="Russian">Russian</option>
                         <option value="German">German</option>
                         <option value="French">French</option>
                         <option value="Spanish">Spanish</option>
@@ -1206,8 +1357,87 @@
                 <p class="setting-hint" id="lang-error"></p>
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" id="settings-cancel">Cancel</button>
-                <button class="btn-primary" id="settings-save">Save</button>
+                <button class="btn-secondary" id="settings-cancel">cancel</button>
+                <button class="btn-primary" id="settings-save">save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>help</h2>
+                <button class="modal-close" id="help-close">[x]</button>
+            </div>
+            <div class="modal-body">
+                <div class="help-ascii">╭─────────────────────────────────────────╮
+│  ╦  ╦╦╔╦╗╦  ╔═╗╔═╗╦╔═╦ ╦╔═╗            │
+│  ╚╗╔╝║║║║║  ║ ║║ ║╠╩╗║ ║╠═╝            │
+│   ╚╝ ╩╩ ╩╩═╝╚═╝╚═╝╩ ╩╚═╝╩    v0.1      │
+│                                         │
+│  read foreign texts with ease           │
+╰─────────────────────────────────────────╯</div>
+                <div class="help-section">
+                    <div class="help-section-title">quick start</div>
+                    <div class="help-row">
+                        <span class="help-key">1. select</span>
+                        <span class="help-desc">highlight text with mouse or vim</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">2. translate</span>
+                        <span class="help-desc">press Enter to get translation</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">3. ask</span>
+                        <span class="help-desc">type follow-up questions below</span>
+                    </div>
+                </div>
+                <div class="help-section">
+                    <div class="help-section-title">vim selection</div>
+                    <div class="help-row">
+                        <span class="help-key">v</span>
+                        <span class="help-desc">enter visual mode (start selecting)</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">w / b</span>
+                        <span class="help-desc">jump forward / back one word</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">e</span>
+                        <span class="help-desc">jump to end of word</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">$ / 0</span>
+                        <span class="help-desc">jump to end / start of line</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">Esc</span>
+                        <span class="help-desc">cancel selection, back to normal</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">Enter</span>
+                        <span class="help-desc">translate selected text</span>
+                    </div>
+                </div>
+                <div class="help-section">
+                    <div class="help-section-title">features</div>
+                    <div class="help-row">
+                        <span class="help-key">highlights</span>
+                        <span class="help-desc">click yellow marks to re-translate</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">context</span>
+                        <span class="help-desc">translate full sentence or paragraph</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key">cache</span>
+                        <span class="help-desc">translations are saved locally</span>
+                    </div>
+                </div>
+                <div class="help-tip">
+                    tip: drag files into editor or use <code>menu → open</code>
+                </div>
             </div>
         </div>
     </div>

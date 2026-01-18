@@ -1,5 +1,5 @@
-// API base URL - use localhost:3000 when running in Tauri (static files), empty for dev server
-const API_BASE = window.__TAURI__ ? 'http://localhost:3000' : '';
+// API base URL - use localhost:2989 when running in Tauri (static files), empty for dev server
+const API_BASE = window.__TAURI__ ? 'http://localhost:2989' : '';
 
 // Session ID for conversation continuity - persist across page reloads
 const SESSION_ID = localStorage.getItem('sessionId') || crypto.randomUUID();
@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupResizeHandle();
     setupMenu();
     setupSettingsModal();
+    setupHelpModal();
     loadSessionMessages();
     updateRecentFilesMenu();
     restoreLastFile();
@@ -300,7 +301,7 @@ function initEditor() {
         }
     });
 
-    console.log('Vim commands registered: type ":t" or ":tr" in vim normal mode, or press Enter in visual mode!');
+    console.log('Translate: select text (vim or mouse) then press Enter');
 
     // Handle clicks on highlights
     editor.getWrapperElement().addEventListener('click', function(e) {
@@ -310,6 +311,64 @@ function initEditor() {
             if (text && text.trim()) {
                 console.log('Highlight clicked:', text);
                 translateHighlightedText(text.trim());
+            }
+        }
+    });
+
+    // Track mouse selection - when user releases mouse after selecting
+    editor.getWrapperElement().addEventListener('mouseup', function() {
+        // Small delay to let selection settle
+        setTimeout(function() {
+            const vimState = editor.state.vim;
+            // Only handle if NOT in vim visual mode (mouse selection)
+            if (!vimState || !vimState.visualMode) {
+                const selection = editor.getSelection();
+                if (selection && selection.trim()) {
+                    updateSelectionPreview(selection);
+                }
+            }
+        }, 10);
+    });
+
+    // Handle Enter key for mouse selections (non-vim)
+    editor.getWrapperElement().addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const vimState = editor.state.vim;
+            // Only intercept if NOT in vim visual mode and has selection
+            if (!vimState || !vimState.visualMode) {
+                const selection = editor.getSelection();
+                if (selection && selection.trim()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Get cursor position for context
+                    const cursorPos = editor.getCursor('start');
+
+                    // Get selection range
+                    const selections = editor.listSelections();
+                    let from, to;
+                    if (selections.length > 0) {
+                        const range = selections[0];
+                        from = range.anchor;
+                        to = range.head;
+                        if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                            [from, to] = [to, from];
+                        }
+                    }
+
+                    // Clear selection in editor
+                    editor.setCursor(cursorPos);
+
+                    // Clear input state
+                    const chatInput = document.getElementById('chat-input');
+                    chatInput.value = '';
+                    chatInput.classList.remove('has-selection');
+                    pendingSelection = null;
+                    inputMode = 'translate';
+
+                    // Translate
+                    translateFromInputWithRefocus(selection, cursorPos, from, to);
+                }
             }
         }
     });
@@ -331,7 +390,13 @@ function initEditor() {
                 updateSelectionPreview(selection);
             }
         } else {
-            clearSelectionPreview();
+            // Check for mouse selection
+            const selection = editor.getSelection();
+            if (selection && selection.trim()) {
+                // Keep showing preview for mouse selection
+            } else {
+                clearSelectionPreview();
+            }
         }
 
         // Save cursor position (debounced via the periodic save)
@@ -468,7 +533,7 @@ async function translateFromInput() {
         file: currentFile || ""
     };
 
-    
+
     // Call API
     try {
         const response = await fetch(API_BASE + '/api/lookup', {
@@ -481,12 +546,14 @@ async function translateFromInput() {
         });
 
         if (!response.ok) {
-            throw new Error('Server error: ' + response.status);
+            const errorMsg = await parseErrorResponse(response);
+            displayError(errorMsg);
+            return;
         }
 
         const data = await response.json();
 
-        
+
         // Add highlight if we have stored selection range and text wasn't modified
         // Skip if translating from visual mode (that path handles its own highlighting)
         if (pendingSelection && !isSelectionModified && !isTranslatingFromVisualMode) {
@@ -538,7 +605,7 @@ async function translateFromInput() {
         console.log('Translation received, switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
-        alert('Translation error: ' + error.message);
+        displayError('Translation error: ' + error.message);
     } finally {
         // Reset button state
         sendBtn.textContent = originalBtnText;
@@ -581,7 +648,7 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
         file: currentFile || ""
     };
 
-    
+
     // Call API
     try {
         const response = await fetch(API_BASE + '/api/lookup', {
@@ -594,12 +661,15 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
         });
 
         if (!response.ok) {
-            throw new Error('Server error: ' + response.status);
+            const errorMsg = await parseErrorResponse(response);
+            displayError(errorMsg);
+            if (editor) editor.focus();
+            return;
         }
 
         const data = await response.json();
 
-        
+
         // Add highlight using text position (same approach as reload - more reliable)
         const content = editor.getValue();
         const textIndex = content.indexOf(text);
@@ -654,7 +724,7 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
         console.log('Translation received, switched to followup mode');
     } catch (error) {
         console.error('Lookup error:', error);
-        alert('Translation error: ' + error.message);
+        displayError('Translation error: ' + error.message);
         // Return focus even on error
         if (editor) {
             editor.focus();
@@ -887,6 +957,36 @@ function openSettingsModal() {
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.remove('open');
+}
+
+function setupHelpModal() {
+    const modal = document.getElementById('help-modal');
+    const helpBtn = document.getElementById('help-btn');
+    const closeBtn = document.getElementById('help-close');
+
+    // Open help modal
+    helpBtn.addEventListener('click', function() {
+        modal.classList.add('open');
+    });
+
+    // Close button
+    closeBtn.addEventListener('click', function() {
+        modal.classList.remove('open');
+    });
+
+    // Close on backdrop click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.classList.remove('open');
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('open')) {
+            modal.classList.remove('open');
+        }
+    });
 }
 
 async function saveSettings() {
@@ -1316,7 +1416,10 @@ async function translatePhrase() {
         });
 
         if (!response.ok) {
-            throw new Error('Server error: ' + response.status);
+            const errorMsg = await parseErrorResponse(response);
+            displayError(errorMsg);
+            enableContextButtons();
+            return;
         }
 
         const data = await response.json();
@@ -1325,7 +1428,7 @@ async function translatePhrase() {
         displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false, data.from_cache);
     } catch (error) {
         console.error('Phrase translation error:', error);
-        alert('Error: ' + error.message);
+        displayError('Error: ' + error.message);
         enableContextButtons();
     }
 }
@@ -1345,7 +1448,10 @@ async function translateParagraph() {
         });
 
         if (!response.ok) {
-            throw new Error('Server error: ' + response.status);
+            const errorMsg = await parseErrorResponse(response);
+            displayError(errorMsg);
+            enableContextButtons();
+            return;
         }
 
         const data = await response.json();
@@ -1354,7 +1460,7 @@ async function translateParagraph() {
         displayMessagesWithContext(data.messages, data.has_phrase || false, data.has_paragraph || false, data.from_cache);
     } catch (error) {
         console.error('Paragraph translation error:', error);
-        alert('Error: ' + error.message);
+        displayError('Error: ' + error.message);
         enableContextButtons();
     }
 }
@@ -1457,6 +1563,28 @@ function displayMessages(messages) {
     displayMessagesWithContext(messages, false, false);
 }
 
+function displayError(errorMessage) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'message error-message';
+    div.innerHTML =
+        '<div class="message-header" style="color: #dc2626;">Error</div>' +
+        '<div class="message-content" style="color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px;">' +
+        escapeHtml(errorMessage) +
+        '</div>';
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function parseErrorResponse(response) {
+    try {
+        const data = await response.json();
+        return data.detail || data.message || `Server error (${response.status})`;
+    } catch {
+        return `Server error (${response.status})`;
+    }
+}
+
 function appendQuestionMessage(question) {
     const container = document.getElementById('chat-messages');
     const div = document.createElement('div');
@@ -1529,15 +1657,17 @@ async function handleConversation() {
             body: JSON.stringify({ question: question })
         });
 
+        // Remove loading first
+        removeLoadingMessage();
+
         if (!response.ok) {
-            throw new Error('Server error: ' + response.status);
+            const errorMsg = await parseErrorResponse(response);
+            displayError(errorMsg);
+            return;
         }
 
         const data = await response.json();
         console.log('Received response:', data);
-
-        // Remove loading and show answer
-        removeLoadingMessage();
 
         // Find the LAST answer in the response (the new one we just received)
         // Using findLast() because data.messages contains ALL conversation history,
@@ -1553,7 +1683,7 @@ async function handleConversation() {
     } catch (error) {
         console.error('Conversation error:', error);
         removeLoadingMessage();
-        appendAnswerMessage('Error: ' + error.message);
+        displayError('Error: ' + error.message);
     } finally {
         // Re-enable input
         input.disabled = false;

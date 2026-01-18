@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -16,6 +17,16 @@ router = APIRouter(prefix="/api")
 sessions = SessionManager()
 
 
+def _check_api_key():
+    """Check if OpenAI API key is configured"""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key or api_key.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI API key is not configured. Please set your API key in Settings (Menu → Settings)."
+        )
+
+
 class ConfigUpdateRequest(BaseModel):
     source_lang: str
     target_lang: str
@@ -25,6 +36,9 @@ class ConfigUpdateRequest(BaseModel):
 @router.post("/lookup")
 async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
     """Main translation endpoint - translates selection only (token-optimized)"""
+    # Check API key is configured
+    _check_api_key()
+
     print(f"DEBUG /api/lookup received:")
     print(f"  selection: {request.selection!r}")
     print(f"  phrase: {request.phrase!r}")
@@ -39,9 +53,21 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
     )
 
     # Use existing LookupService - returns LookupResponse with from_cache
-    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
-    result = lookup_response.result
-    from_cache = lookup_response.from_cache
+    try:
+        lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+        result = lookup_response.result
+        from_cache = lookup_response.from_cache
+    except Exception as e:
+        error_msg = str(e)
+        # Check for common OpenAI errors
+        if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+            raise HTTPException(400, f"API key error: {error_msg}")
+        elif "rate_limit" in error_msg.lower() or "rate limit" in error_msg.lower():
+            raise HTTPException(429, f"Rate limit exceeded. Please wait a moment and try again.")
+        elif "quota" in error_msg.lower():
+            raise HTTPException(402, f"API quota exceeded. Please check your OpenAI billing.")
+        else:
+            raise HTTPException(500, f"Translation error: {error_msg}")
 
     # Update session - store phrase and paragraph for later
     session = sessions.get_or_create(x_session_id)
@@ -85,6 +111,8 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
 @router.post("/lookup/phrase")
 async def lookup_phrase(x_session_id: str = Header(...)):
     """Translate the stored phrase/sentence (option 1)"""
+    _check_api_key()
+
     session = sessions.get_or_create(x_session_id)
 
     if not session.current_phrase:
@@ -98,9 +126,12 @@ async def lookup_phrase(x_session_id: str = Header(...)):
         file=""
     )
 
-    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
-    result = lookup_response.result
-    from_cache = lookup_response.from_cache
+    try:
+        lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+        result = lookup_response.result
+        from_cache = lookup_response.from_cache
+    except Exception as e:
+        raise HTTPException(500, f"Translation error: {str(e)}")
 
     session.add_translation(session.current_phrase, result)
     session.phrase_translated = True  # Mark as translated
@@ -123,6 +154,8 @@ async def lookup_phrase(x_session_id: str = Header(...)):
 @router.post("/lookup/paragraph")
 async def lookup_paragraph(x_session_id: str = Header(...)):
     """Translate the stored paragraph (option 2)"""
+    _check_api_key()
+
     session = sessions.get_or_create(x_session_id)
 
     if not session.current_paragraph:
@@ -136,9 +169,12 @@ async def lookup_paragraph(x_session_id: str = Header(...)):
         file=""
     )
 
-    lookup_response = sessions.factory.lookup_service.lookup(selection_data)
-    result = lookup_response.result
-    from_cache = lookup_response.from_cache
+    try:
+        lookup_response = sessions.factory.lookup_service.lookup(selection_data)
+        result = lookup_response.result
+        from_cache = lookup_response.from_cache
+    except Exception as e:
+        raise HTTPException(500, f"Translation error: {str(e)}")
 
     session.add_translation(session.current_paragraph, result)
     session.paragraph_translated = True  # Mark as translated
@@ -164,9 +200,18 @@ async def conversation(
     x_session_id: str = Header(...)
 ):
     """Follow-up questions"""
+    _check_api_key()
+
     session = sessions.get_or_create(x_session_id)
-    answer = session.conversation_service.generate_response(request.question)
-    session.add_conversation(request.question, answer or "")
+    try:
+        answer = session.conversation_service.generate_response(request.question)
+        session.add_conversation(request.question, answer or "")
+    except Exception as e:
+        error_msg = str(e)
+        if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+            raise HTTPException(400, f"API key error: {error_msg}")
+        else:
+            raise HTTPException(500, f"Error generating response: {error_msg}")
 
     return {"messages": session.messages}
 
@@ -208,6 +253,7 @@ async def get_config():
 async def update_config(request: ConfigUpdateRequest):
     """Update language configuration and API key"""
     import configparser
+    import json
     import os
     from pathlib import Path
 
@@ -225,25 +271,49 @@ async def update_config(request: ConfigUpdateRequest):
         os.environ["OPENAI_API_KEY"] = request.openai_api_key
         print("OpenAI API key updated")
 
-    # Find config file path
-    config_path = Path(__file__).parent.parent.parent / "config.ini"
+    # Save to the correct location based on mode
+    if sessions._production:
+        # Production mode: save to settings.json in app data directory
+        data_dir = sessions.factory.config.cache_dir
+        settings_file = data_dir / "settings.json"
 
-    # Read existing config
-    parser = configparser.ConfigParser()
-    if config_path.exists():
-        parser.read(config_path)
+        # Load existing settings
+        settings = {}
+        if settings_file.exists():
+            try:
+                with open(settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+            except Exception:
+                pass
 
-    # Ensure translation section exists
-    if "translation" not in parser:
-        parser["translation"] = {}
+        # Update language settings
+        settings["source_lang"] = request.source_lang
+        settings["target_lang"] = request.target_lang
 
-    # Update languages
-    parser["translation"]["source_lang"] = request.source_lang
-    parser["translation"]["target_lang"] = request.target_lang
+        # Write back
+        data_dir.mkdir(parents=True, exist_ok=True)
+        with open(settings_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
 
-    # Write back
-    with open(config_path, "w") as f:
-        parser.write(f)
+        print(f"Settings saved to {settings_file}")
+    else:
+        # Development mode: save to config.ini
+        config_path = Path(__file__).parent.parent.parent / "config.ini"
+
+        parser = configparser.ConfigParser()
+        if config_path.exists():
+            parser.read(config_path)
+
+        if "translation" not in parser:
+            parser["translation"] = {}
+
+        parser["translation"]["source_lang"] = request.source_lang
+        parser["translation"]["target_lang"] = request.target_lang
+
+        with open(config_path, "w") as f:
+            parser.write(f)
+
+        print(f"Config saved to {config_path}")
 
     # Reload the factory with new config
     sessions.reload_factory()

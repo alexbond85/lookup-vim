@@ -8,9 +8,9 @@ echo ""
 echo "📡 Starting FastAPI backend..."
 
 source .venv/bin/activate
-python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 3000
+python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 2989
 
 echo ""
-echo "✅ Server running at: http://127.0.0.1:3000"
+echo "✅ Server running at: http://127.0.0.1:2989"
 echo ""
 echo "Press Ctrl+C to stop"

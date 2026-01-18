@@ -90,7 +90,7 @@ def load_config(path: Path | None = None, production: bool = False) -> Config:
             fifo_path=data_dir / "nvim-selection.fifo",
             selections_file=data_dir / "selections.jsonl",
             source_lang=settings.get("source_lang", "French"),
-            target_lang=settings.get("target_lang", "Russian"),
+            target_lang=settings.get("target_lang", "English"),
             debug=settings.get("debug", False),
         )
 
@@ -116,7 +116,7 @@ def load_config(path: Path | None = None, production: bool = False) -> Config:
         fifo_path=cache_dir / fifo_file,
         selections_file=cache_dir / selections_file,
         source_lang=parser.get("translation", "source_lang", fallback="French"),
-        target_lang=parser.get("translation", "target_lang", fallback="Russian"),
+        target_lang=parser.get("translation", "target_lang", fallback="English"),
         debug=parser.getboolean("app", "debug", fallback=False),
     )
 

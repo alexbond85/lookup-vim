@@ -9,11 +9,11 @@ echo ""
 # Start FastAPI backend in background
 echo "📡 Starting FastAPI backend..."
 source .venv/bin/activate
-python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 3000 &
+python -m uvicorn web.backend.app:app --host 127.0.0.1 --port 2989 &
 BACKEND_PID=$!
 
 echo "   Backend PID: $BACKEND_PID"
-echo "   Backend URL: http://127.0.0.1:3000"
+echo "   Backend URL: http://127.0.0.1:2989"
 echo ""
 
 # Wait for backend to start

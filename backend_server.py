@@ -31,13 +31,13 @@ def main():
     data_dir = get_app_data_dir()
     print(f"VimLookup Backend Server")
     print(f"Data directory: {data_dir}")
-    print(f"Starting server on http://127.0.0.1:3000")
+    print(f"Starting server on http://127.0.0.1:2989")
 
     # Run the server
     uvicorn.run(
         "web.backend.app:app",
         host="127.0.0.1",
-        port=3000,
+        port=2989,
         log_level="info",
         # No reload in production
         reload=False,
