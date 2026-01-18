@@ -423,8 +423,8 @@ function updateSendButton() {
 function autoResizeTextarea(textarea) {
     // Reset height to auto to get correct scrollHeight
     textarea.style.height = 'auto';
-    // Set height to scrollHeight, capped by max-height in CSS (38px min, 150px max)
-    const newHeight = Math.max(38, Math.min(textarea.scrollHeight, 150));
+    // Set height to scrollHeight, capped by max-height in CSS (32px min, 120px max)
+    const newHeight = Math.max(32, Math.min(textarea.scrollHeight, 120));
     textarea.style.height = newHeight + 'px';
 }
 
