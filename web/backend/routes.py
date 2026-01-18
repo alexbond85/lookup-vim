@@ -10,6 +10,7 @@ from web.backend.models import (
 )
 from web.backend.session import SessionManager
 from lookup.domain import SelectionData
+from lookup.config import get_recent_files, add_recent_file
 
 router = APIRouter(prefix="/api")
 sessions = SessionManager()
@@ -51,6 +52,10 @@ async def lookup(request: LookupRequest, x_session_id: str = Header(...)):
     session.current_paragraph = request.paragraph
     session.reset_context_flags()  # New selection, reset tracking
     session.add_translation(request.selection, result)
+
+    # Track recent file if provided
+    if request.file:
+        add_recent_file(sessions.factory.config.cache_dir, request.file)
 
     # Determine if we should show context buttons
     has_phrase = bool(
@@ -317,3 +322,43 @@ async def open_cache_file():
     except Exception as e:
         print(f"Error opening cache: {e}")
         raise HTTPException(500, f"Error opening cache: {str(e)}")
+
+
+@router.get("/recent-files")
+async def list_recent_files():
+    """Get list of recently opened files"""
+    config = sessions.factory.config
+    recent = get_recent_files(config.cache_dir)
+    return {
+        "files": [
+            {"path": r.path, "name": r.name, "last_opened": r.last_opened}
+            for r in recent
+        ]
+    }
+
+
+class AddRecentFileRequest(BaseModel):
+    path: str
+
+
+@router.post("/recent-files")
+async def track_recent_file(request: AddRecentFileRequest):
+    """Add a file to the recent files list"""
+    config = sessions.factory.config
+    recent = add_recent_file(config.cache_dir, request.path)
+    return {
+        "files": [
+            {"path": r.path, "name": r.name, "last_opened": r.last_opened}
+            for r in recent
+        ]
+    }
+
+
+@router.get("/data-dir")
+async def get_data_dir():
+    """Get the app data directory path (for debugging/info)"""
+    config = sessions.factory.config
+    return {
+        "path": str(config.cache_dir),
+        "selections_file": str(config.selections_file)
+    }

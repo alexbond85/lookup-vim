@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "nvim-lookup",
+  "productName": "VimLookup",
   "version": "0.1.0",
-  "identifier": "com.nvim-lookup.app",
+  "identifier": "com.vimlookup.app",
   "build": {
     "frontendDist": "../src",
     "devUrl": "http://localhost:3000"
@@ -11,7 +11,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "nvim-lookup",
+        "title": "VimLookup",
         "width": 1400,
         "height": 900,
         "minWidth": 1000,

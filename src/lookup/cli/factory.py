@@ -23,7 +23,7 @@ from lookup.cache.base import CacheBase
 from lookup.cache.jsonl import JSONLCache
 from lookup.cache.memory import MemoryCache
 from lookup.cli.inputs import FifoSource, InputSource, StdinSource
-from lookup.config import Config, load_config
+from lookup.config import Config, load_config, save_config
 from lookup.conversation.service import ConversationService
 from lookup.dictionary.scraper import LeRobertScraper
 from lookup.dictionary.service import DictionaryService
@@ -46,15 +46,20 @@ class ServiceFactory:
 
     Lazily creates services on first access and caches them.
     All services share the same config and can be overridden.
+
+    Args:
+        production: If True, use OS app data directory for storage
+                   (~/Library/Application Support/VimLookup on macOS)
     """
 
     config: Config | None = None
     cache_type: str = "memory"
     model: str = "gpt-5.1"
+    production: bool = False
 
     def __post_init__(self):
         if self.config is None:
-            self.config = load_config()
+            self.config = load_config(production=self.production)
 
         # Lazy-initialized services
         self._prompts: Prompts | None = None
@@ -188,6 +193,15 @@ class ServiceFactory:
 def create_factory(
     cache_type: str = "memory",
     model: str = "gpt-5.1",
+    production: bool = False,
 ) -> ServiceFactory:
-    """Create a factory with custom settings"""
-    return ServiceFactory(cache_type=cache_type, model=model)
+    """Create a factory with custom settings
+
+    Args:
+        cache_type: Type of cache to use ("memory" or "jsonl")
+        model: LLM model to use
+        production: If True, use OS app data directory for storage
+    """
+    return ServiceFactory(
+        cache_type=cache_type, model=model, production=production
+    )

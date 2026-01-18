@@ -120,14 +120,34 @@ class Session:
         return "<br>".join(lines)
 
 
+def _is_production() -> bool:
+    """Check if running in production mode (Tauri app)
+
+    Set VIMLOOKUP_PRODUCTION=1 environment variable to enable.
+    """
+    import os
+    return os.environ.get("VIMLOOKUP_PRODUCTION", "").lower() in ("1", "true", "yes")
+
+
 class SessionManager:
     """Simple in-memory session storage"""
 
     def __init__(self):
         self._sessions: dict[str, Session] = {}
-        self._factory = ServiceFactory(cache_type="jsonl", model="gpt-5.1")
+        self._production = _is_production()
+        self._factory = ServiceFactory(
+            cache_type="jsonl",
+            model="gpt-5.1",
+            production=self._production
+        )
         # Load API key from settings on startup
         self._load_api_key_from_settings()
+
+        if self._production:
+            print(f"Running in production mode")
+            print(f"Data directory: {self._factory.config.cache_dir}")
+        else:
+            print("Running in development mode")
 
     def get_or_create(self, session_id: str) -> Session:
         if session_id not in self._sessions:
@@ -136,7 +156,11 @@ class SessionManager:
 
     def reload_factory(self):
         """Reload the factory with fresh config (after config changes)"""
-        self._factory = ServiceFactory(cache_type="jsonl", model="gpt-5.1")
+        self._factory = ServiceFactory(
+            cache_type="jsonl",
+            model="gpt-5.1",
+            production=self._production
+        )
         # Clear existing sessions so they get recreated with new factory
         self._sessions.clear()
 
