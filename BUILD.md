@@ -231,3 +231,91 @@ To distribute the app:
 3. Users can drag-and-drop to Applications folder
 
 For code signing and notarization (required for distribution outside the App Store), see [Tauri's macOS distribution guide](https://v2.tauri.app/distribute/macos-application-bundle/).
+
+## Uninstalling / Cleaning Up
+
+### Remove the Installed App
+
+If you've copied VimLookup.app to `/Applications`:
+
+```bash
+rm -rf /Applications/VimLookup.app
+```
+
+### Remove Build Artifacts
+
+To clean up all built apps from your project directory:
+
+```bash
+cd web/tauri
+
+# Remove all build artifacts (includes all .app bundles)
+rm -rf src-tauri/target
+
+# Or just remove the app bundles
+rm -rf src-tauri/target/*/bundle/macos/VimLookup.app
+rm -rf src-tauri/target/*/*/bundle/macos/VimLookup.app
+```
+
+### Remove User Data
+
+To completely remove all VimLookup data (highlights, settings, cache):
+
+```bash
+# Application data and settings
+rm -rf ~/Library/Application\ Support/com.vimlookup.reader
+
+# Cache files
+rm -rf ~/Library/Caches/com.vimlookup.reader
+
+# Logs (if any)
+rm -rf ~/Library/Logs/com.vimlookup.reader
+
+# Preferences
+rm -f ~/Library/Preferences/com.vimlookup.reader.plist
+```
+
+### Clean Spotlight Index
+
+If you see multiple VimLookup apps in Spotlight/Launchpad after removing them, rebuild the Spotlight index:
+
+```bash
+# Rebuild Spotlight index for your project directory
+mdutil -E /Users/alexbond/projects/alexbond/nvim-lookup
+
+# Or rebuild for your entire home directory (takes longer)
+mdutil -E ~
+```
+
+Alternatively, just wait a few minutes for macOS to automatically update its index.
+
+### Complete Uninstall (One Command)
+
+To remove everything related to VimLookup:
+
+```bash
+# Remove app from Applications
+rm -rf /Applications/VimLookup.app
+
+# Remove build artifacts from project
+rm -rf /Users/alexbond/projects/alexbond/nvim-lookup/web/tauri/src-tauri/target
+
+# Remove user data
+rm -rf ~/Library/Application\ Support/com.vimlookup.reader
+rm -rf ~/Library/Caches/com.vimlookup.reader
+rm -rf ~/Library/Logs/com.vimlookup.reader
+rm -f ~/Library/Preferences/com.vimlookup.reader.plist
+
+# Rebuild Spotlight index
+mdutil -E /Users/alexbond/projects/alexbond/nvim-lookup
+```
+
+### Why Multiple Apps Appear
+
+During development, you may see multiple VimLookup apps because:
+
+1. **Debug builds**: `target/debug/bundle/macos/VimLookup.app`
+2. **Release builds**: `target/release/bundle/macos/VimLookup.app`
+3. **Architecture-specific builds**: `target/aarch64-apple-darwin/release/bundle/macos/VimLookup.app`
+
+macOS Spotlight indexes all of these, making them appear in Launchpad and app searches. These are just different builds in your project directory, not separate installations.
