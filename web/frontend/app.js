@@ -1,3 +1,6 @@
+// API base URL - use localhost:3000 when running in Tauri (static files), empty for dev server
+const API_BASE = window.__TAURI__ ? 'http://localhost:3000' : '';
+
 // Session ID for conversation continuity - persist across page reloads
 const SESSION_ID = localStorage.getItem('sessionId') || crypto.randomUUID();
 localStorage.setItem('sessionId', SESSION_ID);
@@ -39,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 async function loadAppSettings() {
     try {
-        const response = await fetch('/api/settings');
+        const response = await fetch(API_BASE + '/api/settings');
         if (response.ok) {
             appSettings = await response.json();
             console.log('Loaded app settings:', appSettings);
@@ -51,7 +54,7 @@ async function loadAppSettings() {
 
 async function saveAppSettings() {
     try {
-        await fetch('/api/settings', {
+        await fetch(API_BASE + '/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(appSettings)
@@ -64,7 +67,7 @@ async function saveAppSettings() {
 
 async function loadSessionMessages() {
     try {
-        const response = await fetch('/api/session/messages', {
+        const response = await fetch(API_BASE + '/api/session/messages', {
             headers: { 'X-Session-ID': SESSION_ID }
         });
         if (!response.ok) return;
@@ -134,7 +137,7 @@ function restoreLastFile() {
  */
 async function loadHighlightsForFile(filename, content) {
     try {
-        const response = await fetch('/api/history?file=' + encodeURIComponent(filename));
+        const response = await fetch(API_BASE + '/api/history?file=' + encodeURIComponent(filename));
         const data = await response.json();
 
         // Build highlights from cache entries
@@ -468,7 +471,7 @@ async function translateFromInput() {
     
     // Call API
     try {
-        const response = await fetch('/api/lookup', {
+        const response = await fetch(API_BASE + '/api/lookup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -581,7 +584,7 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
     
     // Call API
     try {
-        const response = await fetch('/api/lookup', {
+        const response = await fetch(API_BASE + '/api/lookup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -783,7 +786,7 @@ function setupMenu() {
 
 async function openCacheFile() {
     try {
-        const response = await fetch('/api/cache/open', { method: 'POST' });
+        const response = await fetch(API_BASE + '/api/cache/open', { method: 'POST' });
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.detail || 'Failed to open cache file');
@@ -868,7 +871,7 @@ function openSettingsModal() {
     document.getElementById('toggle-api-key').classList.remove('showing');
 
     // Load current settings
-    fetch('/api/config')
+    fetch(API_BASE + '/api/config')
         .then(r => r.json())
         .then(config => {
             document.getElementById('source-lang').value = config.source_lang;
@@ -903,7 +906,7 @@ async function saveSettings() {
         await saveAppSettings();
 
         // Save language config to backend
-        const response = await fetch('/api/config', {
+        const response = await fetch(API_BASE + '/api/config', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1138,7 +1141,7 @@ async function translateHighlightedText(text) {
 
     // Call API
     try {
-        const response = await fetch('/api/lookup', {
+        const response = await fetch(API_BASE + '/api/lookup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1224,7 +1227,7 @@ async function handleLookup() {
     
     // Call API
     try {
-        const response = await fetch('/api/lookup', {
+        const response = await fetch(API_BASE + '/api/lookup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1304,7 +1307,7 @@ async function translatePhrase() {
     disableContextButtons();
 
     try {
-        const response = await fetch('/api/lookup/phrase', {
+        const response = await fetch(API_BASE + '/api/lookup/phrase', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1333,7 +1336,7 @@ async function translateParagraph() {
     disableContextButtons();
 
     try {
-        const response = await fetch('/api/lookup/paragraph', {
+        const response = await fetch(API_BASE + '/api/lookup/paragraph', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1517,7 +1520,7 @@ async function handleConversation() {
     input.disabled = true;
 
     try {
-        const response = await fetch('/api/conversation', {
+        const response = await fetch(API_BASE + '/api/conversation', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

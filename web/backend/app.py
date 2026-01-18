@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -15,13 +17,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve frontend
-app.mount("/static", StaticFiles(directory="web/frontend"), name="static")
+# Serve frontend only in development mode (when directory exists)
+# In production, Tauri serves the frontend from embedded assets
+frontend_dir = Path("web/frontend")
+if frontend_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 
-
-@app.get("/")
-async def root():
-    return FileResponse("web/frontend/index.html")
+    @app.get("/")
+    async def root():
+        return FileResponse("web/frontend/index.html")
 
 
 # API routes

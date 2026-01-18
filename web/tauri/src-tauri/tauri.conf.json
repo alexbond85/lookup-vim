@@ -2,9 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "VimLookup",
   "version": "0.1.0",
-  "identifier": "com.vimlookup.app",
+  "identifier": "com.vimlookup.reader",
   "build": {
-    "frontendDist": "../src",
+    "frontendDist": "../../frontend",
     "devUrl": "http://localhost:3000"
   },
   "app": {
@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000"
+      "csp": "default-src 'self' tauri: asset: https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: asset: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' tauri: asset: https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' tauri: asset: https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; connect-src 'self' tauri: ipc: http://localhost:3000 http://127.0.0.1:3000 ws://localhost:3000; img-src 'self' tauri: asset: data: blob:"
     }
   },
   "bundle": {
@@ -31,6 +31,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/vimlookup-server"
     ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
   }
 }
