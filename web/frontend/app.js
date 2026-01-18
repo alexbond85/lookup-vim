@@ -1521,8 +1521,10 @@ async function handleConversation() {
         // Remove loading and show answer
         removeLoadingMessage();
 
-        // Find the answer in the response
-        const answerMsg = data.messages.find(m => m.type === 'answer' && m.content);
+        // Find the LAST answer in the response (the new one we just received)
+        // Using findLast() because data.messages contains ALL conversation history,
+        // and we only want to append the newest answer (not re-display old ones)
+        const answerMsg = data.messages.findLast(m => m.type === 'answer' && m.content);
         if (answerMsg) {
             appendAnswerMessage(answerMsg.content);
         }
