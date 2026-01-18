@@ -726,19 +726,27 @@ function setupMenu() {
     // Toggle menu
     menuBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        menuDropdown.classList.toggle('open');
+        const isOpen = menuDropdown.classList.toggle('open');
+        menuBtn.classList.toggle('open', isOpen);
     });
 
     // Close menu when clicking outside
     document.addEventListener('click', function(e) {
         if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
             menuDropdown.classList.remove('open');
+            menuBtn.classList.remove('open');
         }
     });
 
+    // Helper to close menu
+    function closeMenu() {
+        menuDropdown.classList.remove('open');
+        menuBtn.classList.remove('open');
+    }
+
     // Open file menu item
     document.getElementById('menu-open-file').addEventListener('click', function() {
-        menuDropdown.classList.remove('open');
+        closeMenu();
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.txt,.md';
@@ -755,20 +763,20 @@ function setupMenu() {
             appSettings.editorTheme = theme;
             saveAppSettings();
             updateThemeOptions(theme);
-            menuDropdown.classList.remove('open');
+            closeMenu();
             console.log('Theme changed to:', theme);
         });
     });
 
     // Edit cache menu item
     document.getElementById('menu-edit-cache').addEventListener('click', function() {
-        menuDropdown.classList.remove('open');
+        closeMenu();
         openCacheFile();
     });
 
     // Settings menu item
     document.getElementById('menu-settings').addEventListener('click', function() {
-        menuDropdown.classList.remove('open');
+        closeMenu();
         openSettingsModal();
     });
 }
@@ -928,10 +936,13 @@ const DARK_THEMES = ['monokai', 'dracula', 'solarized dark', 'material'];
 
 function updateThemeOptions(activeTheme) {
     document.querySelectorAll('.theme-option').forEach(function(option) {
-        if (option.dataset.theme === activeTheme) {
-            option.classList.add('active');
-        } else {
-            option.classList.remove('active');
+        const isActive = option.dataset.theme === activeTheme;
+        option.classList.toggle('active', isActive);
+
+        // Update icon: filled circle for active, empty for inactive
+        const icon = option.querySelector('.menu-icon');
+        if (icon) {
+            icon.textContent = isActive ? '●' : '○';
         }
     });
 
@@ -1089,19 +1100,23 @@ function updateRecentFilesMenu() {
     const recentFiles = appSettings.recentFiles || [];
 
     if (recentFiles.length === 0) {
-        submenu.innerHTML = '<div class="menu-item disabled">No recent files</div>';
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'menu-item disabled';
+        emptyItem.innerHTML = '<span class="menu-icon">-</span><span class="menu-label">No recent files</span>';
+        submenu.appendChild(emptyItem);
         return;
     }
 
     recentFiles.forEach((file, index) => {
         const item = document.createElement('div');
         item.className = 'menu-item';
-        item.textContent = file.name;
         item.title = file.name; // Full name on hover
+        item.innerHTML = `<span class="menu-icon">·</span><span class="menu-label">${escapeHtml(file.name)}</span>`;
         item.addEventListener('click', function(e) {
             e.stopPropagation();
             loadFile(file.name, file.content);
             document.getElementById('menu-dropdown').classList.remove('open');
+            document.getElementById('menu-btn').classList.remove('open');
         });
         submenu.appendChild(item);
     });
