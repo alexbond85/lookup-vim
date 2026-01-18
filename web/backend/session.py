@@ -126,6 +126,8 @@ class SessionManager:
     def __init__(self):
         self._sessions: dict[str, Session] = {}
         self._factory = ServiceFactory(cache_type="jsonl", model="gpt-5.1")
+        # Load API key from settings on startup
+        self._load_api_key_from_settings()
 
     def get_or_create(self, session_id: str) -> Session:
         if session_id not in self._sessions:
@@ -141,3 +143,20 @@ class SessionManager:
     @property
     def factory(self) -> ServiceFactory:
         return self._factory
+
+    def _load_api_key_from_settings(self):
+        """Load OpenAI API key from settings file on startup"""
+        import json
+        import os
+
+        try:
+            settings_file = self._factory.config.cache_dir / "app_settings.json"
+            if settings_file.exists():
+                with open(settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                    api_key = settings.get('openaiApiKey')
+                    if api_key:
+                        os.environ["OPENAI_API_KEY"] = api_key
+                        print("OpenAI API key loaded from settings")
+        except Exception as e:
+            print(f"Error loading API key from settings: {e}")

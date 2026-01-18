@@ -17,6 +17,7 @@ let pendingSelection = null; // Store selection range for highlighting after tra
 let inputMode = 'translate';
 let isSelectionModified = false; // Track if user edited the selection text
 let originalSelectionText = ''; // Original selection before user edits
+let isTranslatingFromVisualMode = false; // Flag to prevent cursorActivity interference
 
 // App settings (loaded from disk)
 let appSettings = {};
@@ -118,12 +119,26 @@ function restoreLastFile() {
     }
 }
 
+/**
+ * Load and apply highlights from the cache for the given file.
+ *
+ * HIGHLIGHT SYSTEM NOTES:
+ * - Highlights are visual markers on translated text, created with editor.markText()
+ * - Position calculation uses indexOf + posFromIndex for reliability (not vim positions)
+ * - CRITICAL: Before adding a highlight during live translation, we must clear any
+ *   existing marks in the range. Vim creates invisible cursor bookmark markers that
+ *   cause CodeMirror to split our highlight into multiple DOM spans if not cleared.
+ *   This manifests as hover showing "text minus last char" and "last char" separately.
+ * - On page reload, marks are fresh so this isn't needed.
+ * - Deduplication happens on load to handle legacy duplicate cache entries.
+ */
 async function loadHighlightsForFile(filename, content) {
     try {
         const response = await fetch('/api/history?file=' + encodeURIComponent(filename));
         const data = await response.json();
 
-        highlights = data.entries
+        // Build highlights from cache entries
+        const rawHighlights = data.entries
             .map(entry => {
                 const pos = content.indexOf(entry.selection);
                 if (pos >= 0) {
@@ -137,12 +152,34 @@ async function loadHighlightsForFile(filename, content) {
             })
             .filter(Boolean);
 
-        // Apply highlights
+        // Deduplicate highlights by position (keep first/longest at each start position)
+        const seen = new Map(); // key: "line:ch" -> highlight
+        for (const h of rawHighlights) {
+            const key = `${h.from.line}:${h.from.ch}`;
+            const existing = seen.get(key);
+            if (!existing) {
+                seen.set(key, h);
+            } else {
+                // Keep the longer selection if same start position
+                if (h.selection.length > existing.selection.length) {
+                    seen.set(key, h);
+                }
+            }
+        }
+        highlights = Array.from(seen.values());
+
+        // Apply highlights from cache.
+        // Note: Unlike live translation, we don't need to clear marks here because
+        // this runs on fresh editor content before vim creates any cursor bookmarks.
         highlights.forEach(h => {
             editor.markText(h.from, h.to, { className: 'highlight-mark' });
         });
 
-        console.log('Loaded', highlights.length, 'highlights');
+        if (rawHighlights.length !== highlights.length) {
+            console.log(`Loaded ${highlights.length} highlights (${rawHighlights.length - highlights.length} duplicates removed)`);
+        } else {
+            console.log(`Loaded ${highlights.length} highlights`);
+        }
     } catch (error) {
         console.error('Error loading highlights:', error);
     }
@@ -213,49 +250,47 @@ function initEditor() {
     CodeMirror.Vim.mapCommand('<CR>', 'action', 'translateSelection', {}, {
         context: 'visual'
     });
-    
+
     // Define the translate action for visual mode
     CodeMirror.Vim.defineAction('translateSelection', function(cm) {
-        console.log('Enter pressed in visual mode - translating selection');
-        // Get the selection before exiting visual mode
+        // Get the selection text and range BEFORE exiting visual mode
         const selection = cm.getSelection();
+
         if (selection && selection.trim()) {
-            // Store cursor position and selection range BEFORE exiting visual mode
-            const cursorPos = cm.getCursor('head');
-            const selectionStart = cm.getCursor('anchor');
-            const selectionEnd = cm.getCursor('head');
-            
-            // Vim visual mode is exclusive at the end - we need to extend by 1 char
-            // to include the character under the cursor
-            const extendedEnd = {
-                line: selectionEnd.line,
-                ch: selectionEnd.ch
-            };
-            
-            // Check if we need to extend (if selection is forward or backward)
-            const isForward = (selectionEnd.line > selectionStart.line) || 
-                             (selectionEnd.line === selectionStart.line && selectionEnd.ch > selectionStart.ch);
-            
-            if (isForward) {
-                // Forward selection: extend end by 1
-                extendedEnd.ch += 1;
-            } else {
-                // Backward selection: extend start by 1
-                const extendedStart = {
-                    line: selectionStart.line,
-                    ch: selectionStart.ch + 1
-                };
-                // Exit visual mode back to normal
-                CodeMirror.Vim.exitVisualMode(cm);
-                // Trigger translation with the selection and range
-                translateFromInputWithRefocus(selection, cursorPos, extendedEnd, extendedStart);
-                return;
+            // Set flag to prevent cursorActivity from interfering
+            isTranslatingFromVisualMode = true;
+
+            // Use listSelections() to get the selection range
+            const selections = cm.listSelections();
+            let from, to;
+            if (selections.length > 0) {
+                const range = selections[0];
+                from = range.anchor;
+                to = range.head;
+
+                // Normalize order (make from < to)
+                if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                    [from, to] = [to, from];
+                }
+                // CodeMirror's vim mode already returns exclusive end position
             }
-            
+
+            const cursorPos = cm.getCursor('head');
+
+            // Clear any pending selection and input state
+            pendingSelection = null;
+            inputMode = 'translate';
+
+            // Clear the chat input (it shows the selection preview)
+            const chatInput = document.getElementById('chat-input');
+            chatInput.value = '';
+            chatInput.classList.remove('has-selection');
+
             // Exit visual mode back to normal
             CodeMirror.Vim.exitVisualMode(cm);
-            // Trigger translation with the selection and range
-            translateFromInputWithRefocus(selection, cursorPos, selectionStart, extendedEnd);
+
+            // Trigger translation with the selection and accurate range
+            translateFromInputWithRefocus(selection, cursorPos, from, to);
         } else {
             // No selection, just exit visual mode
             CodeMirror.Vim.exitVisualMode(cm);
@@ -278,6 +313,11 @@ function initEditor() {
 
     // Track vim selection in real-time for live preview
     editor.on('cursorActivity', function() {
+        // Skip if we're in the middle of a visual mode translation
+        if (isTranslatingFromVisualMode) {
+            return;
+        }
+
         const vimState = editor.state.vim;
         if (vimState && vimState.visualMode) {
             // Get selection in visual mode
@@ -395,9 +435,6 @@ async function translateFromInput() {
 
     if (!text) return;
 
-    console.log('Translating from input:', text);
-    console.log('Input mode:', inputMode, 'Selection modified:', isSelectionModified);
-
     // Show loading state
     const originalBtnText = sendBtn.textContent;
     sendBtn.textContent = 'Translating...';
@@ -428,8 +465,7 @@ async function translateFromInput() {
         file: currentFile || ""
     };
 
-    console.log('Sending to API:', requestData);
-
+    
     // Call API
     try {
         const response = await fetch('/api/lookup', {
@@ -447,19 +483,25 @@ async function translateFromInput() {
 
         const data = await response.json();
 
-        console.log('API response:', data);
-
+        
         // Add highlight if we have stored selection range and text wasn't modified
-        if (pendingSelection && !isSelectionModified) {
-            // Normalize from/to order (anchor might be after head)
-            let from = pendingSelection.from;
-            let to = pendingSelection.to;
-            if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
-                [from, to] = [to, from];
+        // Skip if translating from visual mode (that path handles its own highlighting)
+        if (pendingSelection && !isSelectionModified && !isTranslatingFromVisualMode) {
+            // Use indexOf approach for consistent behavior with reload
+            const content = editor.getValue();
+            const textIndex = content.indexOf(pendingSelection.text);
+            if (textIndex >= 0) {
+                const from = editor.posFromIndex(textIndex);
+                const to = editor.posFromIndex(textIndex + pendingSelection.text.length);
+
+                // IMPORTANT: Clear existing marks to prevent highlight splitting.
+                // See translateFromInputWithRefocus for detailed explanation.
+                // Vim's cursor bookmarks cause CodeMirror to split markText into multiple spans.
+                editor.findMarks(from, to).forEach(m => m.clear());
+
+                editor.markText(from, to, { className: 'highlight-mark' });
+                highlights.push({ from, to, selection: pendingSelection.text });
             }
-            editor.markText(from, to, { className: 'highlight-mark' });
-            highlights.push({ from, to, selection: pendingSelection.text });
-            console.log('Added highlight from pending selection');
         }
 
         // Clear pending selection
@@ -536,8 +578,7 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
         file: currentFile || ""
     };
 
-    console.log('Sending to API:', requestData);
-
+    
     // Call API
     try {
         const response = await fetch('/api/lookup', {
@@ -555,19 +596,30 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
 
         const data = await response.json();
 
-        console.log('API response:', data);
+        
+        // Add highlight using text position (same approach as reload - more reliable)
+        const content = editor.getValue();
+        const textIndex = content.indexOf(text);
 
-        // Add highlight for the translated text using captured selection range
-        if (selectionStart && selectionEnd) {
-            // Normalize from/to order (anchor might be after head)
-            let from = selectionStart;
-            let to = selectionEnd;
-            if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
-                [from, to] = [to, from];
-            }
+        if (textIndex >= 0) {
+            const from = editor.posFromIndex(textIndex);
+            const to = editor.posFromIndex(textIndex + text.length);
+
+            // IMPORTANT: Clear all existing marks within our highlight range before adding.
+            // Vim creates invisible cursor bookmark markers during visual mode selection.
+            // If these markers exist inside our range when we call markText(), CodeMirror
+            // will SPLIT our highlight around them, creating multiple <span> elements
+            // instead of one continuous highlight. This causes the visual bug where
+            // hovering shows "text minus last char" and "last char" as separate regions.
+            // Clearing all marks first ensures our highlight renders as a single span.
+            editor.findMarks(from, to).forEach(m => m.clear());
+
             editor.markText(from, to, { className: 'highlight-mark' });
             highlights.push({ from, to, selection: text });
-            console.log('Added highlight from visual mode selection');
+        } else if (selectionStart && selectionEnd) {
+            // Fallback to captured range if text not found (shouldn't happen)
+            editor.markText(selectionStart, selectionEnd, { className: 'highlight-mark' });
+            highlights.push({ from: selectionStart, to: selectionEnd, selection: text });
         }
 
         // Store messages and cache state
@@ -605,9 +657,10 @@ async function translateFromInputWithRefocus(text, cursorPos, selectionStart, se
             editor.focus();
         }
     } finally {
-        // Reset button state
+        // Reset button state and flag
         sendBtn.textContent = originalBtnText;
         updateSendButton();
+        isTranslatingFromVisualMode = false;
     }
 }
 
@@ -830,12 +883,18 @@ async function saveSettings() {
 
     const sourceLang = document.getElementById('source-lang').value;
     const targetLang = document.getElementById('target-lang').value;
+    const apiKey = document.getElementById('openai-api-key').value.trim();
     const saveBtn = document.getElementById('settings-save');
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
 
     try {
+        // Save API key to appSettings (stored on disk)
+        appSettings.openaiApiKey = apiKey;
+        await saveAppSettings();
+
+        // Save language config to backend
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: {
@@ -843,7 +902,8 @@ async function saveSettings() {
             },
             body: JSON.stringify({
                 source_lang: sourceLang,
-                target_lang: targetLang
+                target_lang: targetLang,
+                openai_api_key: apiKey
             })
         });
 
@@ -853,7 +913,7 @@ async function saveSettings() {
         }
 
         closeSettingsModal();
-        console.log('Settings saved:', sourceLang, '->', targetLang);
+        console.log('Settings saved:', sourceLang, '->', targetLang, 'API key:', apiKey ? 'set' : 'not set');
     } catch (error) {
         console.error('Save settings error:', error);
         document.getElementById('lang-error').textContent = error.message;
@@ -1146,8 +1206,7 @@ async function handleLookup() {
         file: currentFile || ""
     };
 
-    console.log('Sending to API:', requestData);
-
+    
     // Call API
     try {
         const response = await fetch('/api/lookup', {
@@ -1165,15 +1224,23 @@ async function handleLookup() {
 
         const data = await response.json();
 
-        console.log('API response:', data);
-        console.log('has_phrase:', data.has_phrase, 'has_paragraph:', data.has_paragraph, 'from_cache:', data.from_cache);
+                console.log('has_phrase:', data.has_phrase, 'has_paragraph:', data.has_paragraph, 'from_cache:', data.from_cache);
 
-        // Add highlight
-        const from = editor.getCursor('start');
-        const to = editor.getCursor('end');
-        editor.markText(from, to, { className: 'highlight-mark' });
+        // Add highlight using indexOf approach for consistency
+        const content = editor.getValue();
+        const textIndex = content.indexOf(selection);
+        if (textIndex >= 0) {
+            const from = editor.posFromIndex(textIndex);
+            const to = editor.posFromIndex(textIndex + selection.length);
 
-        highlights.push({ from, to, selection });
+            // IMPORTANT: Clear existing marks to prevent highlight splitting.
+            // See translateFromInputWithRefocus for detailed explanation.
+            // Vim's cursor bookmarks cause CodeMirror to split markText into multiple spans.
+            editor.findMarks(from, to).forEach(m => m.clear());
+
+            editor.markText(from, to, { className: 'highlight-mark' });
+            highlights.push({ from, to, selection });
+        }
 
         // Store messages and cache state for conversation
         currentMessages = data.messages;

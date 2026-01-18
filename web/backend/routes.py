@@ -18,6 +18,7 @@ sessions = SessionManager()
 class ConfigUpdateRequest(BaseModel):
     source_lang: str
     target_lang: str
+    openai_api_key: str | None = None
 
 
 @router.post("/lookup")
@@ -200,8 +201,9 @@ async def get_config():
 
 @router.post("/config")
 async def update_config(request: ConfigUpdateRequest):
-    """Update language configuration"""
+    """Update language configuration and API key"""
     import configparser
+    import os
     from pathlib import Path
 
     # Validate languages
@@ -212,6 +214,11 @@ async def update_config(request: ConfigUpdateRequest):
         raise HTTPException(400, f"Invalid target language: {request.target_lang}")
     if request.source_lang == request.target_lang:
         raise HTTPException(400, "Source and target languages must be different")
+
+    # Set OpenAI API key as environment variable if provided
+    if request.openai_api_key:
+        os.environ["OPENAI_API_KEY"] = request.openai_api_key
+        print("OpenAI API key updated")
 
     # Find config file path
     config_path = Path(__file__).parent.parent.parent / "config.ini"
