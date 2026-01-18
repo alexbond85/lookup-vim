@@ -1,0 +1,7 @@
+{
+  "name": "vimlookup-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "mkdir -p dist && cp index.html app.js context-extractor.js dist/"
+  }
+}

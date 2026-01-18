@@ -219,3 +219,4 @@ tmp/
 config.ini
 tmp/
 uv.lock
+web/frontend/dist/

@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.vimlookup.reader",
   "build": {
-    "frontendDist": "../../frontend",
+    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "frontendDist": "../../frontend/dist",
     "devUrl": "http://localhost:3000"
   },
   "app": {
