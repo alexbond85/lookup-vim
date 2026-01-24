@@ -39,6 +39,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     loadSessionMessages();
     updateRecentFilesMenu();
     restoreLastFile();
+
+    // Initialize whisper if enabled
+    if (appSettings.enableVoiceInput && typeof window.initWhisper === 'function') {
+        window.initWhisper();
+    }
 });
 
 async function loadAppSettings() {
@@ -934,11 +939,15 @@ function validateLanguages() {
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     const apiKeyInput = document.getElementById('openai-api-key');
+    const voiceInputCheckbox = document.getElementById('enable-voice-input');
 
     // Load API key from appSettings
     apiKeyInput.value = appSettings.openaiApiKey || '';
     apiKeyInput.type = 'password'; // Reset to hidden
     document.getElementById('toggle-api-key').classList.remove('showing');
+
+    // Load voice input setting
+    voiceInputCheckbox.checked = appSettings.enableVoiceInput || false;
 
     // Load current settings
     fetch(API_BASE + '/api/config')
@@ -995,14 +1004,16 @@ async function saveSettings() {
     const sourceLang = document.getElementById('source-lang').value;
     const targetLang = document.getElementById('target-lang').value;
     const apiKey = document.getElementById('openai-api-key').value.trim();
+    const enableVoiceInput = document.getElementById('enable-voice-input').checked;
     const saveBtn = document.getElementById('settings-save');
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
 
     try {
-        // Save API key to appSettings (stored on disk)
+        // Save settings to appSettings (stored on disk)
         appSettings.openaiApiKey = apiKey;
+        appSettings.enableVoiceInput = enableVoiceInput;
         await saveAppSettings();
 
         // Save language config to backend
@@ -1023,8 +1034,15 @@ async function saveSettings() {
             throw new Error(data.detail || 'Failed to save settings');
         }
 
+        // Toggle whisper feature based on current setting
+        if (enableVoiceInput && typeof window.initWhisper === 'function') {
+            window.initWhisper();
+        } else if (!enableVoiceInput && typeof window.destroyWhisper === 'function') {
+            window.destroyWhisper();
+        }
+
         closeSettingsModal();
-        console.log('Settings saved:', sourceLang, '->', targetLang, 'API key:', apiKey ? 'set' : 'not set');
+        console.log('Settings saved:', sourceLang, '->', targetLang, 'API key:', apiKey ? 'set' : 'not set', 'Voice:', enableVoiceInput);
     } catch (error) {
         console.error('Save settings error:', error);
         document.getElementById('lang-error').textContent = error.message;
