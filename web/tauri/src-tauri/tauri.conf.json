@@ -35,7 +35,11 @@
     ],
     "externalBin": [
       "binaries/vimlookup-server"
-    ]
+    ],
+    "macOS": {
+      "entitlements": null,
+      "infoPlist": "Info.plist"
+    }
   },
   "plugins": {
     "shell": {

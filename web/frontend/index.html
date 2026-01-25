@@ -19,8 +19,8 @@
             --fg: #1a1a1a;
             --fg-muted: #6b7280;
             --border: #e5e7eb;
-            --accent: #0d9488;
-            --accent-hover: #0f766e;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
             --highlight-bg: #fef3c7;
             --highlight-border: #f59e0b;
             --panel-bg: #f8f8f8;
@@ -39,7 +39,7 @@
             --syn-function: #6f42c1;
             --syn-variable: #e36209;
             --syn-query: #b45309;
-            --syn-translation: #047857;
+            --syn-translation: #6366f1;
 
             /* Monospace font stack */
             --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Monaco, Consolas, 'Ubuntu Mono', monospace;
@@ -67,7 +67,7 @@
             --syn-function: #d2a8ff;
             --syn-variable: #ffa657;
             --syn-query: #fbbf24;
-            --syn-translation: #34d399;
+            --syn-translation: #818cf8;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -953,6 +953,27 @@
             font-family: var(--font-mono);
         }
 
+        .setting-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .setting-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            color: var(--fg);
+            font-weight: 500;
+        }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -1020,6 +1041,7 @@
 
         /* Chat input container - terminal style */
         #chat-input-container {
+            position: relative;
             padding: 8px 10px;
             border-top: 1px solid var(--border);
             background: var(--panel-bg);
@@ -1027,7 +1049,6 @@
             gap: 6px;
             align-items: flex-end;
             box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
-            position: relative;
             z-index: 5;
         }
 
@@ -1069,13 +1090,13 @@
             opacity: 0.5;
         }
 
-        /* Send/Translate button - compact terminal style */
+        /* Send/Translate button - matches mic button style */
         #send-btn {
             padding: 6px 12px;
-            border: 1px solid var(--accent);
+            border: 1px solid var(--border);
             border-radius: 4px;
-            background: var(--accent);
-            color: white;
+            background: var(--bg);
+            color: var(--fg-muted);
             cursor: pointer;
             font-size: 11px;
             font-family: var(--font-mono);
@@ -1089,13 +1110,78 @@
         }
 
         #send-btn:hover:not(:disabled) {
-            background: var(--accent-hover);
-            border-color: var(--accent-hover);
+            border-color: var(--accent);
+            color: var(--accent);
         }
 
         #send-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
+        }
+
+        /* Mic button - hidden by default, shown when voice input enabled */
+        #mic-btn {
+            display: none;
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--fg-muted);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+            min-height: 32px;
+        }
+
+        #mic-btn.enabled {
+            display: flex;
+        }
+
+        #mic-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        #mic-btn.recording {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        #mic-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Waveform container - hidden by default, shown when recording */
+        #waveform-container {
+            display: none;
+            flex: 1;
+            height: 32px;
+            min-height: 32px;
+            max-height: 32px;
+            border-radius: 4px;
+            background: var(--input-bg);
+            border: 1px solid var(--accent);
+            overflow: hidden;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #waveform-container.visible {
+            display: flex;
+        }
+
+        /* Hide textarea when waveform is visible */
+        #waveform-container.visible + #chat-input {
+            display: none;
+        }
+
+        #waveform-canvas {
+            width: 100%;
+            height: 100%;
         }
 
         /* Help button */
@@ -1305,11 +1391,17 @@
                 </div>
             </div>
             <div id="chat-input-container">
+                <div id="waveform-container">
+                    <canvas id="waveform-canvas"></canvas>
+                </div>
                 <textarea
                     id="chat-input"
                     placeholder="Enter text to translate..."
                     rows="1"
                 ></textarea>
+                <button id="mic-btn" title="Voice input">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                </button>
                 <button id="send-btn">Send</button>
             </div>
         </div>
@@ -1355,6 +1447,14 @@
                     </select>
                 </div>
                 <p class="setting-hint" id="lang-error"></p>
+                <div class="setting-divider"></div>
+                <div class="setting-group">
+                    <label class="setting-checkbox">
+                        <input type="checkbox" id="enable-voice-input">
+                        <span class="checkbox-label">enable voice input</span>
+                    </label>
+                    <p class="setting-hint">use microphone to transcribe speech (whisper)</p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="settings-cancel">cancel</button>
@@ -1452,6 +1552,8 @@
 
     <!-- Context extraction (must load before app.js) -->
     <script src="./context-extractor.js"></script>
+    <!-- Whisper voice input (optional feature) -->
+    <script src="./whisper.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

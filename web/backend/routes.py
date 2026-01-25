@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
 from web.backend.models import (
     ConversationRequest,
@@ -432,3 +432,51 @@ async def get_data_dir():
         "path": str(config.cache_dir),
         "selections_file": str(config.selections_file)
     }
+
+
+@router.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """Transcribe audio using OpenAI Whisper API"""
+    import httpx
+
+    _check_api_key()
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    # Read the uploaded file
+    audio_data = await file.read()
+
+    if len(audio_data) == 0:
+        raise HTTPException(400, "Empty audio file")
+
+    # Send to OpenAI Whisper API
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={
+                    "Authorization": f"Bearer {api_key}"
+                },
+                files={
+                    "file": (file.filename or "audio.webm", audio_data, file.content_type or "audio/webm")
+                },
+                data={
+                    "model": "whisper-1"
+                }
+            )
+
+            if response.status_code != 200:
+                error_text = response.text
+                print(f"Whisper API error: {response.status_code} - {error_text}")
+                raise HTTPException(response.status_code, f"Whisper API error: {error_text}")
+
+            result = response.json()
+            return {"text": result.get("text", "")}
+
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Transcription timed out")
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        print(f"Transcription error: {e}")
+        raise HTTPException(500, f"Transcription error: {str(e)}")
