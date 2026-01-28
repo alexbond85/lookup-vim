@@ -852,6 +852,35 @@ function setupMenu() {
         closeMenu();
         openSettingsModal();
     });
+
+    // History export menu item
+    document.getElementById('menu-export-history').addEventListener('click', function() {
+        closeMenu();
+        exportHistory();
+    });
+
+    // History import menu item
+    document.getElementById('menu-import-history').addEventListener('click', function() {
+        closeMenu();
+        document.getElementById('history-file-input').click();
+    });
+
+    // Hidden file input for import
+    document.getElementById('history-file-input').addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+            importHistory(e.target.files[0]);
+            e.target.value = ''; // Reset for future imports
+        }
+    });
+
+    // Undo import menu item
+    document.getElementById('menu-undo-import').addEventListener('click', function() {
+        closeMenu();
+        undoImport();
+    });
+
+    // Check backup status on load
+    updateUndoMenuVisibility();
 }
 
 async function openCacheFile() {
@@ -1702,6 +1731,132 @@ function formatExplanations(text) {
     return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
+// --- History Import/Export Functions ---
+
+async function exportHistory() {
+    try {
+        const response = await fetch(API_BASE + '/api/history/export');
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || 'Export failed');
+        }
+
+        const blob = await response.blob();
+
+        // Try to use File System Access API for save dialog
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: 'selections.jsonl',
+                    types: [{
+                        description: 'JSONL Files',
+                        accept: { 'application/x-ndjson': ['.jsonl'] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                console.log('History exported successfully');
+                return;
+            } catch (e) {
+                // User cancelled or API failed, fall through to download
+                if (e.name === 'AbortError') {
+                    console.log('Export cancelled by user');
+                    return;
+                }
+                console.log('Save dialog failed, falling back to download:', e);
+            }
+        }
+
+        // Fallback: trigger download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'selections.jsonl';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        console.log('History exported successfully');
+    } catch (error) {
+        console.error('Export error:', error);
+        alert('Export failed: ' + error.message);
+    }
+}
+
+async function importHistory(file) {
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch(API_BASE + '/api/history/import', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Import failed');
+        }
+
+        alert(`Successfully imported ${data.entry_count} entries.\n\nHighlights will refresh when you reload the file.`);
+
+        // Update undo menu visibility
+        updateUndoMenuVisibility();
+
+        console.log('History imported:', data);
+    } catch (error) {
+        console.error('Import error:', error);
+        alert('Import failed: ' + error.message);
+    }
+}
+
+async function undoImport() {
+    if (!confirm('Restore previous history from backup?\n\nThis will undo your last import.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(API_BASE + '/api/history/undo', {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Undo failed');
+        }
+
+        alert('History restored from backup.\n\nHighlights will refresh when you reload the file.');
+
+        // Update undo menu visibility
+        updateUndoMenuVisibility();
+
+        console.log('Import undone:', data);
+    } catch (error) {
+        console.error('Undo error:', error);
+        alert('Undo failed: ' + error.message);
+    }
+}
+
+async function updateUndoMenuVisibility() {
+    try {
+        const response = await fetch(API_BASE + '/api/history/backup-status');
+        const data = await response.json();
+
+        const undoMenuItem = document.getElementById('menu-undo-import');
+        if (undoMenuItem) {
+            undoMenuItem.style.display = data.exists ? 'flex' : 'none';
+        }
+    } catch (error) {
+        console.error('Error checking backup status:', error);
+    }
+}
+
 // Export functions and state for testing
 if (typeof window !== 'undefined') {
     // Make editor accessible globally for tests
@@ -1722,4 +1877,8 @@ if (typeof window !== 'undefined') {
     window.updateSendButton = updateSendButton;
     window.autoResizeTextarea = autoResizeTextarea;
     window.handleSubmit = handleSubmit;
+    window.exportHistory = exportHistory;
+    window.importHistory = importHistory;
+    window.undoImport = undoImport;
+    window.updateUndoMenuVisibility = updateUndoMenuVisibility;
 }

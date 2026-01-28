@@ -128,3 +128,8 @@ class JSONLCache(CacheBase):
 
     def has(self, key: str) -> bool:
         return key in self._cache
+
+    def reload(self) -> None:
+        """Reload cache from disk (used after import)"""
+        self._cache.clear()
+        self._load()

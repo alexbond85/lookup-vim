@@ -1272,10 +1272,30 @@
                     </div>
                 </div>
                 <div class="menu-divider"></div>
-                <div class="menu-item" id="menu-edit-cache">
+                <div class="menu-item has-submenu" id="menu-history">
                     <span class="menu-icon">#</span>
-                    <span class="menu-label">Edit Cache</span>
+                    <span class="menu-label">History</span>
+                    <span class="menu-arrow">&#9656;</span>
+                    <div class="submenu" id="history-submenu">
+                        <div class="menu-item" id="menu-edit-cache">
+                            <span class="menu-icon">&#9998;</span>
+                            <span class="menu-label">Edit</span>
+                        </div>
+                        <div class="menu-item" id="menu-export-history">
+                            <span class="menu-icon">&#8595;</span>
+                            <span class="menu-label">Export</span>
+                        </div>
+                        <div class="menu-item" id="menu-import-history">
+                            <span class="menu-icon">&#8593;</span>
+                            <span class="menu-label">Import</span>
+                        </div>
+                        <div class="menu-item" id="menu-undo-import" style="display: none;">
+                            <span class="menu-icon">&#8617;</span>
+                            <span class="menu-label">Undo Import</span>
+                        </div>
+                    </div>
                 </div>
+                <div class="menu-divider"></div>
                 <div class="menu-item" id="menu-settings">
                     <span class="menu-icon">*</span>
                     <span class="menu-label">Settings</span>
@@ -1441,6 +1461,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden file input for history import -->
+    <input type="file" id="history-file-input" accept=".jsonl" style="display: none;">
 
     <!-- CodeMirror and dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>

@@ -2,7 +2,11 @@ import os
 import subprocess
 import sys
 
-from fastapi import APIRouter, Header, HTTPException, Request
+import json
+import shutil
+
+from fastapi import APIRouter, Header, HTTPException, Request, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from web.backend.models import (
     ConversationRequest,
@@ -431,4 +435,141 @@ async def get_data_dir():
     return {
         "path": str(config.cache_dir),
         "selections_file": str(config.selections_file)
+    }
+
+
+# --- History Import/Export Endpoints ---
+
+def _get_backup_path():
+    """Get the backup file path"""
+    config = sessions.factory.config
+    return config.selections_file.with_suffix('.jsonl.backup')
+
+
+def _validate_jsonl(content: str) -> tuple[bool, int, str]:
+    """
+    Validate JSONL content.
+    Returns (is_valid, entry_count, error_message)
+    """
+    lines = content.strip().split('\n')
+    valid_count = 0
+
+    for i, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            if not isinstance(record, dict):
+                return False, 0, f"Line {i}: Expected JSON object, got {type(record).__name__}"
+            if 'key' not in record:
+                return False, 0, f"Line {i}: Missing 'key' field"
+            valid_count += 1
+        except json.JSONDecodeError as e:
+            return False, 0, f"Line {i}: Invalid JSON - {str(e)}"
+
+    return True, valid_count, ""
+
+
+@router.get("/history/export")
+async def export_history():
+    """Download the selections.jsonl file"""
+    config = sessions.factory.config
+    selections_file = config.selections_file
+
+    if not selections_file.exists():
+        raise HTTPException(404, "No history file exists yet")
+
+    return FileResponse(
+        path=str(selections_file),
+        filename="selections.jsonl",
+        media_type="application/x-ndjson"
+    )
+
+
+@router.post("/history/import")
+async def import_history(file: UploadFile = File(...)):
+    """Import a new history file (replaces existing, creates backup)"""
+    config = sessions.factory.config
+    selections_file = config.selections_file
+    backup_path = _get_backup_path()
+
+    # Read uploaded file
+    try:
+        content = await file.read()
+        content_str = content.decode('utf-8')
+    except Exception as e:
+        raise HTTPException(400, f"Failed to read file: {str(e)}")
+
+    # Validate JSONL format
+    is_valid, entry_count, error_msg = _validate_jsonl(content_str)
+    if not is_valid:
+        raise HTTPException(400, f"Invalid JSONL file: {error_msg}")
+
+    if entry_count == 0:
+        raise HTTPException(400, "File contains no valid entries")
+
+    # Create backup of existing file
+    if selections_file.exists():
+        shutil.copy2(selections_file, backup_path)
+        print(f"Backup created: {backup_path}")
+
+    # Write new file
+    try:
+        selections_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(selections_file, 'w', encoding='utf-8') as f:
+            f.write(content_str)
+            # Ensure file ends with newline
+            if not content_str.endswith('\n'):
+                f.write('\n')
+    except Exception as e:
+        # Restore from backup on failure
+        if backup_path.exists():
+            shutil.copy2(backup_path, selections_file)
+        raise HTTPException(500, f"Failed to write file: {str(e)}")
+
+    # Reload cache
+    sessions.factory.cache.reload()
+
+    return {
+        "message": f"Successfully imported {entry_count} entries",
+        "entry_count": entry_count,
+        "backup_created": backup_path.exists()
+    }
+
+
+@router.post("/history/undo")
+async def undo_import():
+    """Restore history from backup"""
+    config = sessions.factory.config
+    selections_file = config.selections_file
+    backup_path = _get_backup_path()
+
+    if not backup_path.exists():
+        raise HTTPException(404, "No backup file exists")
+
+    # Restore from backup
+    try:
+        shutil.copy2(backup_path, selections_file)
+        # Remove backup after successful restore
+        backup_path.unlink()
+    except Exception as e:
+        raise HTTPException(500, f"Failed to restore backup: {str(e)}")
+
+    # Reload cache
+    sessions.factory.cache.reload()
+
+    return {
+        "message": "History restored from backup",
+        "backup_removed": True
+    }
+
+
+@router.get("/history/backup-status")
+async def get_backup_status():
+    """Check if a backup file exists"""
+    backup_path = _get_backup_path()
+    return {
+        "exists": backup_path.exists(),
+        "path": str(backup_path) if backup_path.exists() else None
     }
