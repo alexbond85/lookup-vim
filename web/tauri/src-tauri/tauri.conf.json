@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: asset: https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: asset: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' tauri: asset: https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' tauri: asset: https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; connect-src 'self' tauri: ipc: http://localhost:2989 http://127.0.0.1:2989 ws://localhost:2989; img-src 'self' tauri: asset: data: blob:"
+      "csp": "default-src 'self' tauri: asset: https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' tauri: asset: https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' tauri: asset: https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' tauri: asset: https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; connect-src 'self' tauri: ipc: http://localhost:2989 http://127.0.0.1:2989 ws://localhost:2989; img-src 'self' tauri: asset: data: blob:; frame-src 'self' blob:; object-src 'self' blob:"
     }
   },
   "bundle": {

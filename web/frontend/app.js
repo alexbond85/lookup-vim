@@ -7,6 +7,7 @@ localStorage.setItem('sessionId', SESSION_ID);
 
 // State
 let currentFile = null;
+let currentFileType = 'text'; // 'text' | 'pdf'
 let highlights = [];
 let editor = null;
 let currentMessages = []; // Store current messages for conversation
@@ -196,17 +197,26 @@ async function loadHighlightsForFile(filename, content) {
 
 function saveFileState() {
     if (currentFile && editor) {
-        // Save file content (limit to 5MB)
-        const content = editor.getValue();
-        console.log('Saving file state - file:', currentFile, 'content length:', content.length);
-        if (content.length < 5 * 1024 * 1024) {
+        if (currentFileType === 'pdf') {
+            // For PDFs, save filename but not content (too large)
             appSettings.lastFile = currentFile;
-            appSettings.lastFileContent = content;
+            appSettings.lastFileContent = null;
+            appSettings.lastCursorPosition = null;
+            saveAppSettings();
+            console.log('Saving file state (PDF) - file:', currentFile);
+        } else {
+            // Save file content (limit to 5MB)
+            const content = editor.getValue();
+            console.log('Saving file state - file:', currentFile, 'content length:', content.length);
+            if (content.length < 5 * 1024 * 1024) {
+                appSettings.lastFile = currentFile;
+                appSettings.lastFileContent = content;
+            }
+            // Save cursor position
+            appSettings.lastCursorPosition = editor.getCursor();
+            // Persist to disk
+            saveAppSettings();
         }
-        // Save cursor position
-        appSettings.lastCursorPosition = editor.getCursor();
-        // Persist to disk
-        saveAppSettings();
     } else {
         console.log('saveFileState skipped - currentFile:', currentFile, 'editor:', !!editor);
     }
@@ -827,8 +837,13 @@ function setupMenu() {
         closeMenu();
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.txt,.md';
-        input.onchange = handleFileSelect;
+        input.accept = '.txt,.md,.pdf,text/plain,text/markdown,application/pdf';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.onchange = function(e) {
+            handleFileSelect(e);
+            input.remove();
+        };
         input.click();
     });
 
@@ -949,18 +964,18 @@ function openSettingsModal() {
     // Load voice input setting
     voiceInputCheckbox.checked = appSettings.enableVoiceInput || false;
 
-    // Load current settings
+    // Open modal immediately, then populate language settings
+    modal.classList.add('open');
+
     fetch(API_BASE + '/api/config')
         .then(r => r.json())
         .then(config => {
             document.getElementById('source-lang').value = config.source_lang;
             document.getElementById('target-lang').value = config.target_lang;
             validateLanguages();
-            modal.classList.add('open');
         })
         .catch(err => {
             console.error('Settings error:', err);
-            alert('Error loading settings');
         });
 }
 
@@ -1093,7 +1108,16 @@ function setupEventListeners() {
         editorPane.classList.remove('drag-over');
 
         const file = e.dataTransfer.files[0];
-        if (file && (file.name.endsWith('.txt') || file.name.endsWith('.md'))) {
+        if (!file) return;
+
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.pdf')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                loadPdfFile(file.name, e.target.result);
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (name.endsWith('.txt') || name.endsWith('.md')) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 loadFile(file.name, e.target.result);
@@ -1163,16 +1187,28 @@ async function handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        loadFile(file.name, e.target.result);
-    };
-    reader.readAsText(file);
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            loadPdfFile(file.name, e.target.result);
+        };
+        reader.readAsArrayBuffer(file);
+    } else {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            loadFile(file.name, e.target.result);
+        };
+        reader.readAsText(file);
+    }
 }
 
 async function loadFile(filename, content) {
     currentFile = filename;
+    currentFileType = 'text';
     document.getElementById('filename').textContent = filename;
+
+    // Switch to text editor view (in case we were showing PDF)
+    showTextEditor();
 
     // Set editor content
     editor.setValue(content);
@@ -1187,6 +1223,66 @@ async function loadFile(filename, content) {
     await loadHighlightsForFile(filename, content);
 }
 
+function loadPdfFile(filename, arrayBuffer) {
+    currentFile = filename;
+    currentFileType = 'pdf';
+    document.getElementById('filename').textContent = filename;
+
+    // Create blob URL for the PDF
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Set iframe source and switch to PDF mode
+    const pdfViewer = document.getElementById('pdf-viewer');
+    if (pdfViewer.src && pdfViewer.src.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfViewer.src);
+    }
+    pdfViewer.src = blobUrl;
+    showPdfViewer();
+
+    // Add to recent files (no content stored for PDFs)
+    addToRecentFiles(filename, null);
+
+    // Save file state (will skip content for PDFs)
+    saveFileState();
+}
+
+function showPdfViewer() {
+    const editorPane = document.getElementById('editor-pane');
+    editorPane.classList.add('pdf-mode');
+    document.getElementById('vim-mode').style.display = 'none';
+
+    // Update chat placeholder for PDF mode
+    const chatInput = document.getElementById('chat-input');
+    if (inputMode !== 'followup') {
+        chatInput.placeholder = 'Type or paste text to translate...';
+    }
+}
+
+function showTextEditor() {
+    const editorPane = document.getElementById('editor-pane');
+    editorPane.classList.remove('pdf-mode');
+    document.getElementById('vim-mode').style.display = '';
+
+    // Clear PDF viewer
+    const pdfViewer = document.getElementById('pdf-viewer');
+    if (pdfViewer.src && pdfViewer.src.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfViewer.src);
+    }
+    pdfViewer.removeAttribute('src');
+
+    // Restore chat placeholder
+    const chatInput = document.getElementById('chat-input');
+    if (inputMode !== 'followup') {
+        chatInput.placeholder = 'Enter text to translate...';
+    }
+
+    // Refresh CodeMirror to handle display change
+    if (editor) {
+        editor.refresh();
+    }
+}
+
 function addToRecentFiles(filename, content) {
     // Initialize recent files array if needed
     if (!appSettings.recentFiles) {
@@ -1197,11 +1293,16 @@ function addToRecentFiles(filename, content) {
     appSettings.recentFiles = appSettings.recentFiles.filter(f => f.name !== filename);
 
     // Add to beginning
-    appSettings.recentFiles.unshift({
+    const entry = {
         name: filename,
-        content: content,
         timestamp: Date.now()
-    });
+    };
+    if (content !== null) {
+        entry.content = content;
+    } else {
+        entry.type = 'pdf';
+    }
+    appSettings.recentFiles.unshift(entry);
 
     // Keep only last 10 files
     appSettings.recentFiles = appSettings.recentFiles.slice(0, 10);
@@ -1230,15 +1331,18 @@ function updateRecentFilesMenu() {
 
     recentFiles.forEach((file, index) => {
         const item = document.createElement('div');
-        item.className = 'menu-item';
-        item.title = file.name; // Full name on hover
+        const isPdf = file.type === 'pdf' || (!file.content && file.name.toLowerCase().endsWith('.pdf'));
+        item.className = 'menu-item' + (isPdf ? ' disabled' : '');
+        item.title = isPdf ? file.name + ' (re-open from disk)' : file.name;
         item.innerHTML = `<span class="menu-icon">·</span><span class="menu-label">${escapeHtml(file.name)}</span>`;
-        item.addEventListener('click', function(e) {
-            e.stopPropagation();
-            loadFile(file.name, file.content);
-            document.getElementById('menu-dropdown').classList.remove('open');
-            document.getElementById('menu-btn').classList.remove('open');
-        });
+        if (!isPdf) {
+            item.addEventListener('click', function(e) {
+                e.stopPropagation();
+                loadFile(file.name, file.content);
+                document.getElementById('menu-dropdown').classList.remove('open');
+                document.getElementById('menu-btn').classList.remove('open');
+            });
+        }
         submenu.appendChild(item);
     });
 }

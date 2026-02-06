@@ -187,10 +187,18 @@ build_tauri() {
         rustup target add "$RUST_TARGET"
     fi
 
+    # Clear Tauri's codegen asset cache to ensure fresh frontend files are embedded.
+    # Without this, Tauri may reuse stale compressed assets even when frontend files change.
+    local build_dir="web/tauri/src-tauri/target/${RUST_TARGET}/release/build"
+    if [[ -d "$build_dir" ]]; then
+        echo_step "Clearing Tauri asset cache..."
+        find "$build_dir" -path "*/tauri-*/out" -type d -exec rm -rf {} + 2>/dev/null || true
+    fi
+
     # Build the Tauri app
     echo_step "Running Tauri build for target: $RUST_TARGET"
     pushd web/tauri > /dev/null
-    cargo tauri build --target "$RUST_TARGET"
+    cargo tauri build --target "$RUST_TARGET" --bundles app
     popd > /dev/null
 
     echo_step "Tauri build complete!"

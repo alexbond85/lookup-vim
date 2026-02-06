@@ -373,6 +373,25 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         }
 
+        /* PDF viewer - hidden by default, shown in PDF mode */
+        #pdf-viewer {
+            display: none;
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            background: var(--bg);
+        }
+
+        #editor-pane.pdf-mode .CodeMirror {
+            display: none;
+        }
+
+        #editor-pane.pdf-mode #pdf-viewer {
+            display: block;
+        }
+
         .highlight-mark {
             background: rgba(245, 158, 11, 0.2) !important;
             border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
@@ -1377,6 +1396,7 @@
     <div id="main-container">
         <div id="editor-pane">
             <textarea id="editor"></textarea>
+            <iframe id="pdf-viewer" title="PDF Viewer"></iframe>
         </div>
 
         <div id="resize-handle"></div>
