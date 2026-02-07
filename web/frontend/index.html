@@ -436,6 +436,64 @@
             background: rgba(99, 102, 241, 0.4);
         }
 
+        /* PDF page navigation bar */
+        #pdf-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 4px 8px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        #pdf-nav button {
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: var(--bg);
+            color: var(--fg-muted);
+            cursor: pointer;
+            font-size: 14px;
+            font-family: var(--font-mono);
+            line-height: 1;
+            transition: all 0.15s;
+        }
+
+        #pdf-nav button:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        #pdf-page-info {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--fg-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #pdf-page-input {
+            width: 32px;
+            padding: 1px 4px;
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            background: var(--input-bg);
+            color: var(--fg);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            text-align: center;
+        }
+
+        #pdf-page-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
         .highlight-mark {
             background: rgba(245, 158, 11, 0.2) !important;
             border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
@@ -1524,6 +1582,14 @@
             <textarea id="editor"></textarea>
             <iframe id="pdf-viewer" title="PDF Viewer"></iframe>
             <div id="pdf-js-viewer" tabindex="-1">
+                <div id="pdf-nav">
+                    <button id="pdf-prev" title="Previous page">&lsaquo;</button>
+                    <span id="pdf-page-info">
+                        <input id="pdf-page-input" type="text" value="1" size="2">
+                        <span>/ <span id="pdf-page-total">1</span></span>
+                    </span>
+                    <button id="pdf-next" title="Next page">&rsaquo;</button>
+                </div>
                 <div id="pdf-pages"></div>
             </div>
         </div>

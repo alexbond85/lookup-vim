@@ -383,6 +383,13 @@ class PdfJsViewer {
         this._currentFilename = null;
         this._currentData = null;
         this._renderInProgress = false;
+        this._currentPage = 1;
+
+        // Nav elements
+        this._pageInput = document.getElementById('pdf-page-input');
+        this._pageTotal = document.getElementById('pdf-page-total');
+        this._prevBtn = document.getElementById('pdf-prev');
+        this._nextBtn = document.getElementById('pdf-next');
 
         // Set PDF.js worker
         if (typeof pdfjsLib !== 'undefined') {
@@ -392,6 +399,7 @@ class PdfJsViewer {
 
         this._setupSelectionListeners();
         this._setupResizeObserver();
+        this._setupPageNav();
     }
 
     _setupSelectionListeners() {
@@ -425,6 +433,77 @@ class PdfJsViewer {
         this._resizeObserver.observe(this.container);
     }
 
+    _setupPageNav() {
+        // Prev / Next buttons
+        this._prevBtn.addEventListener('click', () => this._goToPage(this._currentPage - 1));
+        this._nextBtn.addEventListener('click', () => this._goToPage(this._currentPage + 1));
+
+        // Jump to page on Enter in input
+        this._pageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const num = parseInt(this._pageInput.value, 10);
+                if (num >= 1 && this.pdfDoc && num <= this.pdfDoc.numPages) {
+                    this._goToPage(num);
+                } else {
+                    this._pageInput.value = this._currentPage;
+                }
+            }
+        });
+
+        // Also accept blur to jump
+        this._pageInput.addEventListener('blur', () => {
+            const num = parseInt(this._pageInput.value, 10);
+            if (num >= 1 && this.pdfDoc && num <= this.pdfDoc.numPages) {
+                this._goToPage(num);
+            } else {
+                this._pageInput.value = this._currentPage;
+            }
+        });
+
+        // Track scroll to update current page indicator
+        this.container.addEventListener('scroll', () => {
+            if (!this.pdfDoc) return;
+            const pages = this.pagesEl.children;
+            if (pages.length === 0) return;
+
+            const scrollTop = this.container.scrollTop;
+            const containerTop = this.pagesEl.offsetTop;
+            let page = 1;
+
+            for (let i = 0; i < pages.length; i++) {
+                const pageTop = pages[i].offsetTop - containerTop;
+                const pageBottom = pageTop + pages[i].offsetHeight;
+                // Current page is the one whose top half is visible
+                if (scrollTop >= pageTop - pages[i].offsetHeight / 2) {
+                    page = i + 1;
+                }
+            }
+
+            if (page !== this._currentPage) {
+                this._currentPage = page;
+                this._pageInput.value = page;
+            }
+        });
+    }
+
+    _goToPage(num) {
+        if (!this.pdfDoc || num < 1 || num > this.pdfDoc.numPages) return;
+        const pages = this.pagesEl.children;
+        if (pages[num - 1]) {
+            pages[num - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
+            this._currentPage = num;
+            this._pageInput.value = num;
+        }
+    }
+
+    _updatePageNav() {
+        if (this.pdfDoc) {
+            this._pageTotal.textContent = this.pdfDoc.numPages;
+            this._pageInput.value = 1;
+            this._currentPage = 1;
+        }
+    }
+
     async load(filename, data) {
         this._currentFilename = filename;
         this._currentData = data;
@@ -441,6 +520,7 @@ class PdfJsViewer {
         try {
             const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(data) });
             this.pdfDoc = await loadingTask.promise;
+            this._updatePageNav();
             await this._renderAllPages();
         } catch (e) {
             console.error('PDF.js load error:', e);
