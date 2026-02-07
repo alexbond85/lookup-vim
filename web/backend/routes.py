@@ -203,8 +203,10 @@ async def conversation(
     _check_api_key()
 
     session = sessions.get_or_create(x_session_id)
+    print(f"DEBUG /api/conversation: LLM messages before={len(session.conversation_service._messages)}")
     try:
         answer = session.conversation_service.generate_response(request.question)
+        print(f"DEBUG /api/conversation: LLM messages after={len(session.conversation_service._messages)}")
         session.add_conversation(request.question, answer or "")
     except Exception as e:
         error_msg = str(e)
@@ -236,6 +238,16 @@ async def get_session_messages(x_session_id: str = Header(...)):
     """Get current session's chat messages"""
     session = sessions.get_or_create(x_session_id)
     return {"messages": session.messages}
+
+
+@router.post("/session/reset")
+async def reset_session(x_session_id: str = Header(...)):
+    """Reset conversation context (LLM history only, keeps UI messages)"""
+    session = sessions.get_or_create(x_session_id)
+    msg_count_before = len(session.conversation_service._messages)
+    session.reset_conversation()
+    print(f"DEBUG /api/session/reset: cleared {msg_count_before} LLM messages -> 0")
+    return {"status": "ok"}
 
 
 @router.get("/config")

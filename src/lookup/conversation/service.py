@@ -43,12 +43,15 @@ class ConversationService:
         """Generate response to a question
 
         Adds user question, calls LLM, adds response to messages.
+        If conversation was reset, starts fresh with system prompt.
 
         Returns:
             LLM response or None on error
         """
         if not self._messages:
-            return None
+            self._messages.append(
+                {"role": "system", "content": self._system_prompt}
+            )
 
         try:
             self.add_user_message(question)

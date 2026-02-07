@@ -1294,6 +1294,14 @@ function setupEventListeners() {
         // Auto-resize textarea
         autoResizeTextarea(chatInput);
 
+        // Slash command autocomplete
+        const val = chatInput.value;
+        if (val.startsWith('/') && !val.includes(' ')) {
+            showCommandAutocomplete(val);
+        } else {
+            hideCommandAutocomplete();
+        }
+
         // Detect if user modified selection text
         if (inputMode === 'selection' && originalSelectionText) {
             if (chatInput.value !== originalSelectionText) {
@@ -1311,11 +1319,84 @@ function setupEventListeners() {
         updateSendButton();
     });
 
+    // Hide autocomplete on blur
+    chatInput.addEventListener('blur', function() {
+        setTimeout(hideCommandAutocomplete, 150);
+    });
+
     // Send button click handler
     sendBtn.addEventListener('click', handleSubmit);
 
+    // Reset context button
+    document.getElementById('reset-btn').addEventListener('click', resetContext);
+
     // Initial button state
     updateSendButton();
+}
+
+// Reset conversation context (LLM history only, UI messages stay)
+async function resetContext() {
+    try {
+        await fetch(API_BASE + '/api/session/reset', {
+            method: 'POST',
+            headers: { 'X-Session-ID': SESSION_ID }
+        });
+
+        // Append a visual note in the chat
+        const container = document.getElementById('chat-messages');
+        const note = document.createElement('div');
+        note.className = 'context-reset-note';
+        note.textContent = '--- context reset ---';
+        container.appendChild(note);
+        container.scrollTop = container.scrollHeight;
+
+        console.log('Context reset');
+    } catch (error) {
+        console.error('Error resetting context:', error);
+    }
+}
+
+// Slash command autocomplete
+const SLASH_COMMANDS = [
+    { command: '/reset', description: 'Reset conversation context' }
+];
+
+function showCommandAutocomplete(filter) {
+    let dropdown = document.getElementById('command-autocomplete');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = 'command-autocomplete';
+        document.getElementById('chat-input-container').appendChild(dropdown);
+    }
+
+    const matches = SLASH_COMMANDS.filter(c => c.command.startsWith(filter));
+    if (matches.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    dropdown.innerHTML = '';
+    matches.forEach(cmd => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML = '<span class="autocomplete-cmd">' + cmd.command + '</span>' +
+                         '<span class="autocomplete-desc">' + cmd.description + '</span>';
+        item.addEventListener('mousedown', function(e) {
+            e.preventDefault(); // prevent blur
+            const chatInput = document.getElementById('chat-input');
+            chatInput.value = cmd.command;
+            hideCommandAutocomplete();
+            handleSubmit();
+        });
+        dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = 'block';
+}
+
+function hideCommandAutocomplete() {
+    const dropdown = document.getElementById('command-autocomplete');
+    if (dropdown) dropdown.style.display = 'none';
 }
 
 // Unified submit handler
@@ -1324,6 +1405,15 @@ function handleSubmit() {
     const text = chatInput.value.trim();
 
     if (!text) return;
+
+    // Intercept /reset command
+    if (text === '/reset') {
+        chatInput.value = '';
+        autoResizeTextarea(chatInput);
+        updateSendButton();
+        resetContext();
+        return;
+    }
 
     if (inputMode === 'followup') {
         // Send as follow-up question

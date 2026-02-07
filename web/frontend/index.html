@@ -1174,6 +1174,88 @@
             cursor: not-allowed;
         }
 
+        /* Reset context button */
+        #reset-btn {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--fg-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+            min-height: 32px;
+        }
+
+        #reset-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Context reset note in chat */
+        .context-reset-note {
+            text-align: center;
+            font-size: 10px;
+            color: var(--fg-muted);
+            font-family: var(--font-mono);
+            padding: 6px 0;
+            opacity: 0.6;
+            letter-spacing: 0.5px;
+        }
+
+        /* Slash command autocomplete */
+        #command-autocomplete {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 10px;
+            right: 10px;
+            background: var(--message-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 4px;
+            padding: 4px 0;
+            z-index: 20;
+            font-family: var(--font-mono);
+        }
+
+        .autocomplete-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .autocomplete-item:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .autocomplete-cmd {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--syn-function);
+        }
+
+        .autocomplete-item:hover .autocomplete-cmd {
+            color: white;
+        }
+
+        .autocomplete-desc {
+            font-size: 11px;
+            color: var(--fg-muted);
+        }
+
+        .autocomplete-item:hover .autocomplete-desc {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
         /* Waveform container - hidden by default, shown when recording */
         #waveform-container {
             display: none;
@@ -1421,6 +1503,9 @@
                 ></textarea>
                 <button id="mic-btn" title="Voice input">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                </button>
+                <button id="reset-btn" title="Reset context (/reset)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                 </button>
                 <button id="send-btn">Send</button>
             </div>
