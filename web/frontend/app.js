@@ -7,12 +7,14 @@ localStorage.setItem('sessionId', SESSION_ID);
 
 // State
 let currentFile = null;
-let currentFileType = 'text'; // 'text' | 'pdf'
 let highlights = [];
 let editor = null;
 let currentMessages = []; // Store current messages for conversation
 let lastFromCache = false; // Track if last translation was from cache
 let pendingSelection = null; // Store selection range for highlighting after translate
+
+// Viewer instances (initialized in DOMContentLoaded)
+let textViewer, pdfViewer, activeViewer;
 
 // Input field state management
 // 'translate' - initial state or after editing selection, translates text
@@ -26,12 +28,383 @@ let isTranslatingFromVisualMode = false; // Flag to prevent cursorActivity inter
 // App settings (loaded from disk)
 let appSettings = {};
 
-// Initialize CodeMirror when DOM is ready
+// --- Viewer classes ---
+
+class TextViewer {
+    constructor() {
+        const textarea = document.getElementById('editor');
+
+        // Load saved theme from appSettings (disk-persisted)
+        const savedTheme = appSettings.editorTheme || 'default';
+        console.log('TextViewer - loading theme:', savedTheme);
+
+        // Load saved split position from appSettings
+        const savedSplit = appSettings.splitPosition || '65';
+        const editorPane = document.getElementById('editor-pane');
+        const chatPane = document.getElementById('chat-pane');
+        editorPane.style.flex = `0 0 ${savedSplit}%`;
+        chatPane.style.flex = '1';
+
+        this.cm = CodeMirror.fromTextArea(textarea, {
+            mode: 'markdown',
+            lineNumbers: true,
+            lineWrapping: true,
+            keyMap: 'vim',
+            theme: savedTheme
+        });
+
+        // Set global editor for backward compat
+        editor = this.cm;
+
+        // Update theme options to show active
+        updateThemeOptions(savedTheme);
+
+        // Track vim mode changes
+        this.cm.on('vim-mode-change', function(e) {
+            const mode = e.mode || 'normal';
+            document.getElementById('vim-mode').textContent = mode.toUpperCase();
+        });
+
+        // Set up custom translate command in vim - just type :t in vim!
+        CodeMirror.Vim.defineEx('translate', 't', function(cm) {
+            console.log('Translate ex command triggered!');
+            handleLookup();
+        });
+
+        // Also create :tr alias
+        CodeMirror.Vim.defineEx('tr', 'tr', function(cm) {
+            console.log('Translate :tr command triggered!');
+            handleLookup();
+        });
+
+        // Map Enter key in visual mode to trigger translation
+        CodeMirror.Vim.mapCommand('<CR>', 'action', 'translateSelection', {}, {
+            context: 'visual'
+        });
+
+        // Define the translate action for visual mode
+        CodeMirror.Vim.defineAction('translateSelection', function(cm) {
+            // Get the selection text and range BEFORE exiting visual mode
+            const selection = cm.getSelection();
+
+            if (selection && selection.trim()) {
+                // Set flag to prevent cursorActivity from interfering
+                isTranslatingFromVisualMode = true;
+
+                // Use listSelections() to get the selection range
+                const selections = cm.listSelections();
+                let from, to;
+                if (selections.length > 0) {
+                    const range = selections[0];
+                    from = range.anchor;
+                    to = range.head;
+
+                    // Normalize order (make from < to)
+                    if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                        [from, to] = [to, from];
+                    }
+                    // CodeMirror's vim mode already returns exclusive end position
+                }
+
+                const cursorPos = cm.getCursor('head');
+
+                // Clear any pending selection and input state
+                pendingSelection = null;
+                inputMode = 'translate';
+
+                // Clear the chat input (it shows the selection preview)
+                const chatInput = document.getElementById('chat-input');
+                chatInput.value = '';
+                chatInput.classList.remove('has-selection');
+
+                // Exit visual mode back to normal
+                CodeMirror.Vim.exitVisualMode(cm);
+
+                // Trigger translation with the selection and accurate range
+                translateFromInputWithRefocus(selection, cursorPos, from, to);
+            } else {
+                // No selection, just exit visual mode
+                CodeMirror.Vim.exitVisualMode(cm);
+            }
+        });
+
+        console.log('Translate: select text (vim or mouse) then press Enter');
+
+        // Handle clicks on highlights
+        this.cm.getWrapperElement().addEventListener('click', function(e) {
+            // Check if clicked element is a highlight
+            if (e.target.classList.contains('highlight-mark')) {
+                const text = e.target.textContent;
+                if (text && text.trim()) {
+                    console.log('Highlight clicked:', text);
+                    translateHighlightedText(text.trim());
+                }
+            }
+        });
+
+        // Track mouse selection - when user releases mouse after selecting
+        this.cm.getWrapperElement().addEventListener('mouseup', function() {
+            // Small delay to let selection settle
+            setTimeout(function() {
+                const vimState = editor.state.vim;
+                // Only handle if NOT in vim visual mode (mouse selection)
+                if (!vimState || !vimState.visualMode) {
+                    const selection = editor.getSelection();
+                    if (selection && selection.trim()) {
+                        updateSelectionPreview(selection);
+                    }
+                }
+            }, 10);
+        });
+
+        // Handle Enter key for mouse selections (non-vim)
+        this.cm.getWrapperElement().addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const vimState = editor.state.vim;
+                // Only intercept if NOT in vim visual mode and has selection
+                if (!vimState || !vimState.visualMode) {
+                    const selection = editor.getSelection();
+                    if (selection && selection.trim()) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        // Get cursor position for context
+                        const cursorPos = editor.getCursor('start');
+
+                        // Get selection range
+                        const selections = editor.listSelections();
+                        let from, to;
+                        if (selections.length > 0) {
+                            const range = selections[0];
+                            from = range.anchor;
+                            to = range.head;
+                            if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
+                                [from, to] = [to, from];
+                            }
+                        }
+
+                        // Clear selection in editor
+                        editor.setCursor(cursorPos);
+
+                        // Clear input state
+                        const chatInput = document.getElementById('chat-input');
+                        chatInput.value = '';
+                        chatInput.classList.remove('has-selection');
+                        pendingSelection = null;
+                        inputMode = 'translate';
+
+                        // Translate
+                        translateFromInputWithRefocus(selection, cursorPos, from, to);
+                    }
+                }
+            }
+        });
+
+        // Track vim selection in real-time for live preview
+        this.cm.on('cursorActivity', function() {
+            // Skip if we're in the middle of a visual mode translation
+            if (isTranslatingFromVisualMode) {
+                return;
+            }
+
+            const vimState = editor.state.vim;
+            if (vimState && vimState.visualMode) {
+                // Get selection in visual mode
+                const start = editor.getCursor('anchor');
+                const end = editor.getCursor('head');
+                const selection = editor.getRange(start, end);
+                if (selection && selection.trim()) {
+                    updateSelectionPreview(selection);
+                }
+            } else {
+                // Check for mouse selection
+                const selection = editor.getSelection();
+                if (selection && selection.trim()) {
+                    // Keep showing preview for mouse selection
+                } else {
+                    clearSelectionPreview();
+                }
+            }
+
+            // Save cursor position (debounced via the periodic save)
+            saveCursorPosition();
+        });
+
+        // Save state before page unload
+        window.addEventListener('beforeunload', function() {
+            saveFileState();
+        });
+
+        console.log('Editor initialized with vim mode and theme:', savedTheme);
+    }
+
+    show() {
+        const editorPane = document.getElementById('editor-pane');
+        editorPane.classList.remove('pdf-mode');
+        document.getElementById('vim-mode').style.display = '';
+
+        // Clear PDF viewer
+        const pdfIframe = document.getElementById('pdf-viewer');
+        if (pdfIframe.src && pdfIframe.src.startsWith('blob:')) {
+            URL.revokeObjectURL(pdfIframe.src);
+        }
+        pdfIframe.removeAttribute('src');
+
+        // Restore chat placeholder
+        const chatInput = document.getElementById('chat-input');
+        if (inputMode !== 'followup') {
+            chatInput.placeholder = 'Enter text to translate...';
+        }
+
+        // Refresh CodeMirror to handle display change
+        this.cm.refresh();
+    }
+
+    hide() {
+        // no-op: CodeMirror stays in DOM, hidden via CSS pdf-mode class
+    }
+
+    load(filename, data) {
+        this.show();
+        this.cm.setValue(data);
+        loadHighlightsForFile(filename, data);
+    }
+
+    getTypeKey() {
+        return 'text';
+    }
+
+    getSaveState() {
+        const content = this.cm.getValue();
+        return {
+            content: content.length < 5 * 1024 * 1024 ? content : null,
+            cursor: this.cm.getCursor()
+        };
+    }
+
+    restoreState(state) {
+        if (state.content) {
+            this.cm.setValue(state.content);
+        }
+        if (state.cursor) {
+            try {
+                this.cm.setCursor(state.cursor);
+                this.cm.scrollIntoView(state.cursor, 100);
+            } catch (e) {
+                console.error('Error restoring cursor:', e);
+            }
+        }
+    }
+
+    getRecentFileEntry(filename) {
+        return {
+            name: filename,
+            timestamp: Date.now(),
+            content: this.cm.getValue()
+        };
+    }
+
+    canRestoreFromRecent(entry) {
+        return !!entry.content;
+    }
+
+    loadFromRecent(entry) {
+        this.load(entry.name, entry.content);
+    }
+}
+
+class PdfViewer {
+    constructor() {
+        this.iframe = document.getElementById('pdf-viewer');
+    }
+
+    show() {
+        const editorPane = document.getElementById('editor-pane');
+        editorPane.classList.add('pdf-mode');
+        document.getElementById('vim-mode').style.display = 'none';
+
+        // Update chat placeholder for PDF mode
+        const chatInput = document.getElementById('chat-input');
+        if (inputMode !== 'followup') {
+            chatInput.placeholder = 'Type or paste text to translate...';
+        }
+    }
+
+    hide() {
+        if (this.iframe.src && this.iframe.src.startsWith('blob:')) {
+            URL.revokeObjectURL(this.iframe.src);
+        }
+        this.iframe.removeAttribute('src');
+    }
+
+    load(filename, data) {
+        // data is an ArrayBuffer
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        if (this.iframe.src && this.iframe.src.startsWith('blob:')) {
+            URL.revokeObjectURL(this.iframe.src);
+        }
+        this.iframe.src = blobUrl;
+        this.show();
+    }
+
+    getTypeKey() {
+        return 'pdf';
+    }
+
+    getSaveState() {
+        return { content: null, cursor: null };
+    }
+
+    restoreState() {
+        // no-op: PDF content not persisted
+    }
+
+    getRecentFileEntry(filename) {
+        return {
+            name: filename,
+            timestamp: Date.now(),
+            type: 'pdf'
+        };
+    }
+
+    canRestoreFromRecent(entry) {
+        return false;
+    }
+
+    loadFromRecent() {
+        // no-op
+    }
+}
+
+// --- Routing ---
+
+function getViewerForFile(filename) {
+    if (filename.toLowerCase().endsWith('.pdf')) return pdfViewer;
+    return textViewer;
+}
+
+function openFile(filename, data) {
+    const newViewer = getViewerForFile(filename);
+    if (activeViewer && activeViewer !== newViewer) activeViewer.hide();
+    activeViewer = newViewer;
+    currentFile = filename;
+    document.getElementById('filename').textContent = filename;
+    activeViewer.load(filename, data);
+    addToRecentFiles(filename);
+    saveFileState();
+}
+
+// Initialize viewers when DOM is ready
 document.addEventListener('DOMContentLoaded', async function() {
     // Load settings from disk first
     await loadAppSettings();
 
-    initEditor();
+    textViewer = new TextViewer();
+    pdfViewer = new PdfViewer();
+    activeViewer = textViewer;
+
     setupEventListeners();
     setupResizeHandle();
     setupMenu();
@@ -101,31 +474,26 @@ function restoreLastFile() {
     const savedFile = appSettings.lastFile;
     const savedContent = appSettings.lastFileContent;
     const savedCursor = appSettings.lastCursorPosition;
+    const savedType = appSettings.lastFileType || 'text';
 
-    console.log('Restore check - savedFile:', savedFile);
+    console.log('Restore check - savedFile:', savedFile, 'type:', savedType);
     console.log('Restore check - savedContent length:', savedContent ? savedContent.length : 0);
     console.log('Restore check - savedCursor:', savedCursor);
 
-    if (savedFile && savedContent) {
+    if (savedFile && savedType === 'text' && savedContent) {
         console.log('Restoring last file:', savedFile);
         currentFile = savedFile;
+        activeViewer = textViewer;
         document.getElementById('filename').textContent = savedFile;
-        editor.setValue(savedContent);
 
-        // Restore cursor position
-        if (savedCursor) {
-            try {
-                editor.setCursor(savedCursor);
-                // Scroll cursor into view
-                editor.scrollIntoView(savedCursor, 100);
-                console.log('Restored cursor position:', savedCursor);
-            } catch (e) {
-                console.error('Error restoring cursor:', e);
-            }
-        }
+        textViewer.restoreState({ content: savedContent, cursor: savedCursor });
 
         // Load highlights for this file
         loadHighlightsForFile(savedFile, savedContent);
+    } else if (savedFile && savedType === 'pdf') {
+        // PDF content not persisted, just show filename
+        currentFile = savedFile;
+        document.getElementById('filename').textContent = savedFile + ' (re-open from disk)';
     }
 }
 
@@ -196,234 +564,17 @@ async function loadHighlightsForFile(filename, content) {
 }
 
 function saveFileState() {
-    if (currentFile && editor) {
-        if (currentFileType === 'pdf') {
-            // For PDFs, save filename but not content (too large)
-            appSettings.lastFile = currentFile;
-            appSettings.lastFileContent = null;
-            appSettings.lastCursorPosition = null;
-            saveAppSettings();
-            console.log('Saving file state (PDF) - file:', currentFile);
-        } else {
-            // Save file content (limit to 5MB)
-            const content = editor.getValue();
-            console.log('Saving file state - file:', currentFile, 'content length:', content.length);
-            if (content.length < 5 * 1024 * 1024) {
-                appSettings.lastFile = currentFile;
-                appSettings.lastFileContent = content;
-            }
-            // Save cursor position
-            appSettings.lastCursorPosition = editor.getCursor();
-            // Persist to disk
-            saveAppSettings();
-        }
+    if (currentFile && activeViewer) {
+        const state = activeViewer.getSaveState();
+        appSettings.lastFile = currentFile;
+        appSettings.lastFileType = activeViewer.getTypeKey();
+        appSettings.lastFileContent = state.content;
+        appSettings.lastCursorPosition = state.cursor;
+        saveAppSettings();
+        console.log('Saving file state -', activeViewer.getTypeKey(), '- file:', currentFile);
     } else {
-        console.log('saveFileState skipped - currentFile:', currentFile, 'editor:', !!editor);
+        console.log('saveFileState skipped - currentFile:', currentFile, 'activeViewer:', !!activeViewer);
     }
-}
-
-function initEditor() {
-    const textarea = document.getElementById('editor');
-
-    // Load saved theme from appSettings (disk-persisted)
-    const savedTheme = appSettings.editorTheme || 'default';
-    console.log('initEditor - loading theme:', savedTheme);
-
-    // Load saved split position from appSettings
-    const savedSplit = appSettings.splitPosition || '65';
-    const editorPane = document.getElementById('editor-pane');
-    const chatPane = document.getElementById('chat-pane');
-    editorPane.style.flex = `0 0 ${savedSplit}%`;
-    chatPane.style.flex = '1';
-
-    editor = CodeMirror.fromTextArea(textarea, {
-        mode: 'markdown',
-        lineNumbers: true,
-        lineWrapping: true,
-        keyMap: 'vim',
-        theme: savedTheme
-    });
-
-    // Update theme options to show active
-    updateThemeOptions(savedTheme);
-
-    // Track vim mode changes
-    editor.on('vim-mode-change', function(e) {
-        const mode = e.mode || 'normal';
-        document.getElementById('vim-mode').textContent = mode.toUpperCase();
-    });
-
-    // Set up custom translate command in vim - just type :t in vim!
-    CodeMirror.Vim.defineEx('translate', 't', function(cm) {
-        console.log('Translate ex command triggered!');
-        handleLookup();
-    });
-
-    // Also create :tr alias
-    CodeMirror.Vim.defineEx('tr', 'tr', function(cm) {
-        console.log('Translate :tr command triggered!');
-        handleLookup();
-    });
-
-    // Map Enter key in visual mode to trigger translation
-    CodeMirror.Vim.mapCommand('<CR>', 'action', 'translateSelection', {}, {
-        context: 'visual'
-    });
-
-    // Define the translate action for visual mode
-    CodeMirror.Vim.defineAction('translateSelection', function(cm) {
-        // Get the selection text and range BEFORE exiting visual mode
-        const selection = cm.getSelection();
-
-        if (selection && selection.trim()) {
-            // Set flag to prevent cursorActivity from interfering
-            isTranslatingFromVisualMode = true;
-
-            // Use listSelections() to get the selection range
-            const selections = cm.listSelections();
-            let from, to;
-            if (selections.length > 0) {
-                const range = selections[0];
-                from = range.anchor;
-                to = range.head;
-
-                // Normalize order (make from < to)
-                if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
-                    [from, to] = [to, from];
-                }
-                // CodeMirror's vim mode already returns exclusive end position
-            }
-
-            const cursorPos = cm.getCursor('head');
-
-            // Clear any pending selection and input state
-            pendingSelection = null;
-            inputMode = 'translate';
-
-            // Clear the chat input (it shows the selection preview)
-            const chatInput = document.getElementById('chat-input');
-            chatInput.value = '';
-            chatInput.classList.remove('has-selection');
-
-            // Exit visual mode back to normal
-            CodeMirror.Vim.exitVisualMode(cm);
-
-            // Trigger translation with the selection and accurate range
-            translateFromInputWithRefocus(selection, cursorPos, from, to);
-        } else {
-            // No selection, just exit visual mode
-            CodeMirror.Vim.exitVisualMode(cm);
-        }
-    });
-
-    console.log('Translate: select text (vim or mouse) then press Enter');
-
-    // Handle clicks on highlights
-    editor.getWrapperElement().addEventListener('click', function(e) {
-        // Check if clicked element is a highlight
-        if (e.target.classList.contains('highlight-mark')) {
-            const text = e.target.textContent;
-            if (text && text.trim()) {
-                console.log('Highlight clicked:', text);
-                translateHighlightedText(text.trim());
-            }
-        }
-    });
-
-    // Track mouse selection - when user releases mouse after selecting
-    editor.getWrapperElement().addEventListener('mouseup', function() {
-        // Small delay to let selection settle
-        setTimeout(function() {
-            const vimState = editor.state.vim;
-            // Only handle if NOT in vim visual mode (mouse selection)
-            if (!vimState || !vimState.visualMode) {
-                const selection = editor.getSelection();
-                if (selection && selection.trim()) {
-                    updateSelectionPreview(selection);
-                }
-            }
-        }, 10);
-    });
-
-    // Handle Enter key for mouse selections (non-vim)
-    editor.getWrapperElement().addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            const vimState = editor.state.vim;
-            // Only intercept if NOT in vim visual mode and has selection
-            if (!vimState || !vimState.visualMode) {
-                const selection = editor.getSelection();
-                if (selection && selection.trim()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    // Get cursor position for context
-                    const cursorPos = editor.getCursor('start');
-
-                    // Get selection range
-                    const selections = editor.listSelections();
-                    let from, to;
-                    if (selections.length > 0) {
-                        const range = selections[0];
-                        from = range.anchor;
-                        to = range.head;
-                        if (from.line > to.line || (from.line === to.line && from.ch > to.ch)) {
-                            [from, to] = [to, from];
-                        }
-                    }
-
-                    // Clear selection in editor
-                    editor.setCursor(cursorPos);
-
-                    // Clear input state
-                    const chatInput = document.getElementById('chat-input');
-                    chatInput.value = '';
-                    chatInput.classList.remove('has-selection');
-                    pendingSelection = null;
-                    inputMode = 'translate';
-
-                    // Translate
-                    translateFromInputWithRefocus(selection, cursorPos, from, to);
-                }
-            }
-        }
-    });
-
-    // Track vim selection in real-time for live preview
-    editor.on('cursorActivity', function() {
-        // Skip if we're in the middle of a visual mode translation
-        if (isTranslatingFromVisualMode) {
-            return;
-        }
-
-        const vimState = editor.state.vim;
-        if (vimState && vimState.visualMode) {
-            // Get selection in visual mode
-            const start = editor.getCursor('anchor');
-            const end = editor.getCursor('head');
-            const selection = editor.getRange(start, end);
-            if (selection && selection.trim()) {
-                updateSelectionPreview(selection);
-            }
-        } else {
-            // Check for mouse selection
-            const selection = editor.getSelection();
-            if (selection && selection.trim()) {
-                // Keep showing preview for mouse selection
-            } else {
-                clearSelectionPreview();
-            }
-        }
-
-        // Save cursor position (debounced via the periodic save)
-        saveCursorPosition();
-    });
-
-    // Save state before page unload
-    window.addEventListener('beforeunload', function() {
-        saveFileState();
-    });
-
-    console.log('Editor initialized with vim mode and theme:', savedTheme);
 }
 
 // Debounced cursor position save
@@ -786,7 +937,7 @@ function setupResizeHandle() {
 
         editorPane.style.flex = `0 0 ${percentage}%`;
 
-        // Refresh CodeMirror to handle resize
+        // Refresh viewers to handle resize
         if (editor) {
             editor.refresh();
         }
@@ -1114,13 +1265,13 @@ function setupEventListeners() {
         if (name.endsWith('.pdf')) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                loadPdfFile(file.name, e.target.result);
+                openFile(file.name, e.target.result);
             };
             reader.readAsArrayBuffer(file);
         } else if (name.endsWith('.txt') || name.endsWith('.md')) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                loadFile(file.name, e.target.result);
+                openFile(file.name, e.target.result);
             };
             reader.readAsText(file);
         }
@@ -1190,100 +1341,19 @@ async function handleFileSelect(e) {
     if (file.name.toLowerCase().endsWith('.pdf')) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            loadPdfFile(file.name, e.target.result);
+            openFile(file.name, e.target.result);
         };
         reader.readAsArrayBuffer(file);
     } else {
         const reader = new FileReader();
         reader.onload = function(e) {
-            loadFile(file.name, e.target.result);
+            openFile(file.name, e.target.result);
         };
         reader.readAsText(file);
     }
 }
 
-async function loadFile(filename, content) {
-    currentFile = filename;
-    currentFileType = 'text';
-    document.getElementById('filename').textContent = filename;
-
-    // Switch to text editor view (in case we were showing PDF)
-    showTextEditor();
-
-    // Set editor content
-    editor.setValue(content);
-
-    // Add to recent files
-    addToRecentFiles(filename, content);
-
-    // Save file state
-    saveFileState();
-
-    // Load highlights from history
-    await loadHighlightsForFile(filename, content);
-}
-
-function loadPdfFile(filename, arrayBuffer) {
-    currentFile = filename;
-    currentFileType = 'pdf';
-    document.getElementById('filename').textContent = filename;
-
-    // Create blob URL for the PDF
-    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    // Set iframe source and switch to PDF mode
-    const pdfViewer = document.getElementById('pdf-viewer');
-    if (pdfViewer.src && pdfViewer.src.startsWith('blob:')) {
-        URL.revokeObjectURL(pdfViewer.src);
-    }
-    pdfViewer.src = blobUrl;
-    showPdfViewer();
-
-    // Add to recent files (no content stored for PDFs)
-    addToRecentFiles(filename, null);
-
-    // Save file state (will skip content for PDFs)
-    saveFileState();
-}
-
-function showPdfViewer() {
-    const editorPane = document.getElementById('editor-pane');
-    editorPane.classList.add('pdf-mode');
-    document.getElementById('vim-mode').style.display = 'none';
-
-    // Update chat placeholder for PDF mode
-    const chatInput = document.getElementById('chat-input');
-    if (inputMode !== 'followup') {
-        chatInput.placeholder = 'Type or paste text to translate...';
-    }
-}
-
-function showTextEditor() {
-    const editorPane = document.getElementById('editor-pane');
-    editorPane.classList.remove('pdf-mode');
-    document.getElementById('vim-mode').style.display = '';
-
-    // Clear PDF viewer
-    const pdfViewer = document.getElementById('pdf-viewer');
-    if (pdfViewer.src && pdfViewer.src.startsWith('blob:')) {
-        URL.revokeObjectURL(pdfViewer.src);
-    }
-    pdfViewer.removeAttribute('src');
-
-    // Restore chat placeholder
-    const chatInput = document.getElementById('chat-input');
-    if (inputMode !== 'followup') {
-        chatInput.placeholder = 'Enter text to translate...';
-    }
-
-    // Refresh CodeMirror to handle display change
-    if (editor) {
-        editor.refresh();
-    }
-}
-
-function addToRecentFiles(filename, content) {
+function addToRecentFiles(filename) {
     // Initialize recent files array if needed
     if (!appSettings.recentFiles) {
         appSettings.recentFiles = [];
@@ -1292,17 +1362,8 @@ function addToRecentFiles(filename, content) {
     // Remove if already exists (to move to top)
     appSettings.recentFiles = appSettings.recentFiles.filter(f => f.name !== filename);
 
-    // Add to beginning
-    const entry = {
-        name: filename,
-        timestamp: Date.now()
-    };
-    if (content !== null) {
-        entry.content = content;
-    } else {
-        entry.type = 'pdf';
-    }
-    appSettings.recentFiles.unshift(entry);
+    // Add to beginning - delegate entry creation to activeViewer
+    appSettings.recentFiles.unshift(activeViewer.getRecentFileEntry(filename));
 
     // Keep only last 10 files
     appSettings.recentFiles = appSettings.recentFiles.slice(0, 10);
@@ -1329,16 +1390,23 @@ function updateRecentFilesMenu() {
         return;
     }
 
-    recentFiles.forEach((file, index) => {
+    recentFiles.forEach((file) => {
+        const viewer = getViewerForFile(file.name);
+        const canRestore = viewer.canRestoreFromRecent(file);
         const item = document.createElement('div');
-        const isPdf = file.type === 'pdf' || (!file.content && file.name.toLowerCase().endsWith('.pdf'));
-        item.className = 'menu-item' + (isPdf ? ' disabled' : '');
-        item.title = isPdf ? file.name + ' (re-open from disk)' : file.name;
+        item.className = 'menu-item' + (canRestore ? '' : ' disabled');
+        item.title = canRestore ? file.name : file.name + ' (re-open from disk)';
         item.innerHTML = `<span class="menu-icon">·</span><span class="menu-label">${escapeHtml(file.name)}</span>`;
-        if (!isPdf) {
+        if (canRestore) {
             item.addEventListener('click', function(e) {
                 e.stopPropagation();
-                loadFile(file.name, file.content);
+                if (activeViewer && activeViewer !== viewer) activeViewer.hide();
+                activeViewer = viewer;
+                currentFile = file.name;
+                document.getElementById('filename').textContent = file.name;
+                viewer.loadFromRecent(file);
+                addToRecentFiles(file.name);
+                saveFileState();
                 document.getElementById('menu-dropdown').classList.remove('open');
                 document.getElementById('menu-btn').classList.remove('open');
             });
