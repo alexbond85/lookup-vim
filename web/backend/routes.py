@@ -492,3 +492,23 @@ async def transcribe_audio(file: UploadFile = File(...)):
             raise
         print(f"Transcription error: {e}")
         raise HTTPException(500, f"Transcription error: {str(e)}")
+
+
+@router.post("/ocr")
+async def ocr_image(file: UploadFile = File(...)):
+    """Extract text from image using Tesseract OCR"""
+    import io
+
+    import pytesseract
+    from PIL import Image
+
+    image_data = await file.read()
+    if len(image_data) == 0:
+        raise HTTPException(400, "Empty image file")
+
+    try:
+        image = Image.open(io.BytesIO(image_data))
+        text = pytesseract.image_to_string(image)
+        return {"text": text.strip()}
+    except Exception as e:
+        raise HTTPException(500, f"OCR error: {str(e)}")

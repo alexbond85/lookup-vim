@@ -908,6 +908,54 @@ function clearSelectionPreview() {
     }
 }
 
+// Handle pasted image — send to /api/ocr, put result in selection mode
+async function handleImagePaste(blob) {
+    const chatInput = document.getElementById('chat-input');
+    const savedPlaceholder = chatInput.placeholder;
+
+    chatInput.disabled = true;
+    chatInput.placeholder = 'Extracting text from image...';
+    chatInput.value = '';
+
+    try {
+        const formData = new FormData();
+        formData.append('file', blob, 'paste.png');
+
+        const resp = await fetch(API_BASE + '/api/ocr', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+            throw new Error(err.detail || 'OCR failed');
+        }
+
+        const { text } = await resp.json();
+        if (!text) {
+            throw new Error('No text detected in image');
+        }
+
+        // Put extracted text into selection mode (same as PDF.js selection)
+        chatInput.disabled = false;
+        chatInput.value = text;
+        chatInput.classList.add('has-selection');
+        chatInput.placeholder = 'OCR text...';
+
+        inputMode = 'selection';
+        isSelectionModified = false;
+        originalSelectionText = text;
+        pendingSelection = { from: null, to: null, text: text };
+
+        updateSendButton();
+        autoResizeTextarea(chatInput);
+    } catch (err) {
+        chatInput.disabled = false;
+        chatInput.placeholder = savedPlaceholder;
+        displayError('OCR error: ' + err.message);
+    }
+}
+
 // Update send button based on current mode
 function updateSendButton() {
     const sendBtn = document.getElementById('send-btn');
@@ -1554,6 +1602,21 @@ function setupEventListeners() {
     // Chat input setup
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
+
+    // Paste handler - detect image paste for OCR
+    chatInput.addEventListener('paste', function(e) {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                handleImagePaste(item.getAsFile());
+                return;
+            }
+        }
+        // No image found — let normal text paste proceed
+    });
 
     // Handle keyboard input - Enter to submit, Shift+Enter for newline
     chatInput.addEventListener('keydown', function(e) {
