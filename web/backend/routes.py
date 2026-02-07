@@ -494,6 +494,23 @@ async def transcribe_audio(file: UploadFile = File(...)):
         raise HTTPException(500, f"Transcription error: {str(e)}")
 
 
+def _clean_ocr_text(text: str) -> str:
+    """Fix OCR line breaks: join lines within paragraphs, rejoin hyphenated words."""
+    import re
+
+    # Rejoin hyphenated words split across lines (e.g. "con-\ncept" → "concept")
+    text = re.sub(r"-\n(\S)", r"\1", text)
+    # Double newlines → paragraph marker
+    text = text.replace("\n\n", "\x00")
+    # Single newlines → space (spurious line breaks)
+    text = text.replace("\n", " ")
+    # Restore paragraph breaks as single newline
+    text = text.replace("\x00", "\n")
+    # Collapse multiple spaces
+    text = re.sub(r" {2,}", " ", text)
+    return text.strip()
+
+
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)):
     """Extract text from image using Tesseract OCR"""
@@ -509,6 +526,6 @@ async def ocr_image(file: UploadFile = File(...)):
     try:
         image = Image.open(io.BytesIO(image_data))
         text = pytesseract.image_to_string(image)
-        return {"text": text.strip()}
+        return {"text": _clean_ocr_text(text)}
     except Exception as e:
         raise HTTPException(500, f"OCR error: {str(e)}")

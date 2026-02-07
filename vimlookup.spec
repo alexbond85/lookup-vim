@@ -96,6 +96,9 @@ hiddenimports = [
     'web.backend.models',
     # Platformdirs
     'platformdirs',
+    # OCR
+    'pytesseract',
+    'PIL',
 ]
 
 a = Analysis(
@@ -112,7 +115,6 @@ a = Analysis(
         'matplotlib',
         'numpy',
         'pandas',
-        'PIL',
         'cv2',
     ],
     win_no_prefer_redirects=False,
