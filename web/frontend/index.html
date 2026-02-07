@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/solarized.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/base16-light.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.css">
 
     <style>
         :root {
@@ -390,6 +391,49 @@
 
         #editor-pane.pdf-mode #pdf-viewer {
             display: block;
+        }
+
+        /* PDF.js viewer - hidden by default, shown in pdf-mode with pdf-js class */
+        #pdf-js-viewer {
+            display: none;
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            background: var(--bg);
+            overflow-y: auto;
+        }
+
+        #editor-pane.pdf-mode.pdf-js #pdf-js-viewer {
+            display: block;
+        }
+
+        #editor-pane.pdf-mode.pdf-js #pdf-viewer {
+            display: none;
+        }
+
+        .pdf-page {
+            position: relative;
+            margin: 0 auto 8px auto;
+        }
+
+        .pdf-page canvas {
+            display: block;
+        }
+
+        .pdf-page .textLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0.25;
+            overflow: hidden;
+        }
+
+        .pdf-page .textLayer ::selection {
+            background: rgba(99, 102, 241, 0.4);
         }
 
         .highlight-mark {
@@ -1479,6 +1523,9 @@
         <div id="editor-pane">
             <textarea id="editor"></textarea>
             <iframe id="pdf-viewer" title="PDF Viewer"></iframe>
+            <div id="pdf-js-viewer" tabindex="-1">
+                <div id="pdf-pages"></div>
+            </div>
         </div>
 
         <div id="resize-handle"></div>
@@ -1559,6 +1606,15 @@
                         <span class="checkbox-label">enable voice input</span>
                     </label>
                     <p class="setting-hint">use microphone to transcribe speech (whisper)</p>
+                </div>
+                <div class="setting-divider"></div>
+                <div class="setting-group">
+                    <label for="pdf-renderer">pdf viewer</label>
+                    <select id="pdf-renderer">
+                        <option value="pdfjs">PDF.js (text selection)</option>
+                        <option value="iframe">Browser native (iframe)</option>
+                    </select>
+                    <p class="setting-hint">pdf.js enables selecting text in PDFs</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1654,6 +1710,9 @@
 
     <!-- Marked for markdown rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+    <!-- PDF.js for text-selectable PDF rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <!-- Context extraction (must load before app.js) -->
     <script src="./context-extractor.js"></script>

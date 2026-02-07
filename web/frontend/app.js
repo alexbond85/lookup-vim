@@ -14,7 +14,7 @@ let lastFromCache = false; // Track if last translation was from cache
 let pendingSelection = null; // Store selection range for highlighting after translate
 
 // Viewer instances (initialized in DOMContentLoaded)
-let textViewer, pdfViewer, activeViewer;
+let textViewer, pdfIframeViewer, pdfJsViewer, pdfViewer, activeViewer;
 
 // Input field state management
 // 'translate' - initial state or after editing selection, translates text
@@ -240,15 +240,11 @@ class TextViewer {
 
     show() {
         const editorPane = document.getElementById('editor-pane');
-        editorPane.classList.remove('pdf-mode');
+        editorPane.classList.remove('pdf-mode', 'pdf-js');
         document.getElementById('vim-mode').style.display = '';
 
         // Clear PDF viewer
-        const pdfIframe = document.getElementById('pdf-viewer');
-        if (pdfIframe.src && pdfIframe.src.startsWith('blob:')) {
-            URL.revokeObjectURL(pdfIframe.src);
-        }
-        pdfIframe.removeAttribute('src');
+        if (pdfViewer && pdfViewer.hide) pdfViewer.hide();
 
         // Restore chat placeholder
         const chatInput = document.getElementById('chat-input');
@@ -313,7 +309,7 @@ class TextViewer {
     }
 }
 
-class PdfViewer {
+class PdfIframeViewer {
     constructor() {
         this.iframe = document.getElementById('pdf-viewer');
     }
@@ -321,6 +317,7 @@ class PdfViewer {
     show() {
         const editorPane = document.getElementById('editor-pane');
         editorPane.classList.add('pdf-mode');
+        editorPane.classList.remove('pdf-js');
         document.getElementById('vim-mode').style.display = 'none';
 
         // Update chat placeholder for PDF mode
@@ -378,6 +375,192 @@ class PdfViewer {
     }
 }
 
+class PdfJsViewer {
+    constructor() {
+        this.container = document.getElementById('pdf-js-viewer');
+        this.pagesEl = document.getElementById('pdf-pages');
+        this.pdfDoc = null;
+        this._currentFilename = null;
+        this._currentData = null;
+        this._renderInProgress = false;
+
+        // Set PDF.js worker
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        this._setupSelectionListeners();
+        this._setupResizeObserver();
+    }
+
+    _setupSelectionListeners() {
+        this.container.addEventListener('mouseup', () => {
+            const sel = window.getSelection();
+            const text = sel ? sel.toString().trim() : '';
+            if (!text) return;
+
+            const chatInput = document.getElementById('chat-input');
+            chatInput.value = text;
+            chatInput.classList.add('has-selection');
+            chatInput.placeholder = 'Selected text...';
+
+            inputMode = 'selection';
+            isSelectionModified = false;
+            originalSelectionText = text;
+
+            pendingSelection = { from: null, to: null, text: text };
+
+            updateSendButton();
+            autoResizeTextarea(chatInput);
+        });
+    }
+
+    _setupResizeObserver() {
+        this._resizeObserver = new ResizeObserver(() => {
+            if (this.pdfDoc && !this._renderInProgress) {
+                this._renderAllPages();
+            }
+        });
+        this._resizeObserver.observe(this.container);
+    }
+
+    async load(filename, data) {
+        this._currentFilename = filename;
+        this._currentData = data;
+
+        // Clean up previous document
+        if (this.pdfDoc) {
+            this.pdfDoc.destroy();
+            this.pdfDoc = null;
+        }
+        this.pagesEl.innerHTML = '';
+
+        this.show();
+
+        try {
+            const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(data) });
+            this.pdfDoc = await loadingTask.promise;
+            await this._renderAllPages();
+        } catch (e) {
+            console.error('PDF.js load error:', e);
+            this.pagesEl.innerHTML = '<div style="padding:20px;color:var(--fg-muted)">Error loading PDF</div>';
+        }
+    }
+
+    async _renderAllPages() {
+        if (!this.pdfDoc || this._renderInProgress) return;
+        this._renderInProgress = true;
+
+        this.pagesEl.innerHTML = '';
+
+        const containerWidth = this.container.clientWidth - 2; // account for border
+
+        try {
+            for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+                await this._renderPage(i, containerWidth);
+            }
+        } catch (e) {
+            console.error('PDF.js render error:', e);
+        } finally {
+            this._renderInProgress = false;
+        }
+    }
+
+    async _renderPage(pageNum, containerWidth) {
+        const page = await this.pdfDoc.getPage(pageNum);
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const scale = containerWidth / unscaledViewport.width;
+        const viewport = page.getViewport({ scale });
+
+        // Page wrapper
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'pdf-page';
+        pageDiv.style.width = viewport.width + 'px';
+        pageDiv.style.height = viewport.height + 'px';
+
+        // Canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width * (window.devicePixelRatio || 1);
+        canvas.height = viewport.height * (window.devicePixelRatio || 1);
+        canvas.style.width = viewport.width + 'px';
+        canvas.style.height = viewport.height + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        pageDiv.appendChild(canvas);
+
+        // Render canvas
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // Text layer
+        const textContent = await page.getTextContent();
+        const textLayerDiv = document.createElement('div');
+        textLayerDiv.className = 'textLayer';
+        textLayerDiv.style.width = viewport.width + 'px';
+        textLayerDiv.style.height = viewport.height + 'px';
+        pageDiv.appendChild(textLayerDiv);
+
+        pdfjsLib.renderTextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport: viewport,
+            textDivs: []
+        });
+
+        this.pagesEl.appendChild(pageDiv);
+    }
+
+    show() {
+        const editorPane = document.getElementById('editor-pane');
+        editorPane.classList.add('pdf-mode', 'pdf-js');
+        document.getElementById('vim-mode').style.display = 'none';
+
+        // Update chat placeholder for PDF mode
+        const chatInput = document.getElementById('chat-input');
+        if (inputMode !== 'followup') {
+            chatInput.placeholder = 'Select text in PDF or type to translate...';
+        }
+    }
+
+    hide() {
+        if (this.pdfDoc) {
+            this.pdfDoc.destroy();
+            this.pdfDoc = null;
+        }
+        this.pagesEl.innerHTML = '';
+        this._currentFilename = null;
+        this._currentData = null;
+    }
+
+    getTypeKey() {
+        return 'pdf';
+    }
+
+    getSaveState() {
+        return { content: null, cursor: null };
+    }
+
+    restoreState() {
+        // no-op: PDF content not persisted
+    }
+
+    getRecentFileEntry(filename) {
+        return {
+            name: filename,
+            timestamp: Date.now(),
+            type: 'pdf'
+        };
+    }
+
+    canRestoreFromRecent(entry) {
+        return false;
+    }
+
+    loadFromRecent() {
+        // no-op
+    }
+}
+
 // --- Routing ---
 
 function getViewerForFile(filename) {
@@ -402,7 +585,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadAppSettings();
 
     textViewer = new TextViewer();
-    pdfViewer = new PdfViewer();
+    pdfIframeViewer = new PdfIframeViewer();
+    pdfJsViewer = new PdfJsViewer();
+    pdfViewer = (appSettings.pdfRenderer === 'iframe') ? pdfIframeViewer : pdfJsViewer;
     activeViewer = textViewer;
 
     setupEventListeners();
@@ -681,7 +866,7 @@ async function translateFromInput() {
 
     const useContext = (inputMode === 'selection' && !isSelectionModified);
 
-    if (useContext && pendingSelection) {
+    if (useContext && pendingSelection && pendingSelection.from) {
         try {
             const cursor = pendingSelection.from;
             sentence = getSentenceAtCursor(editor, cursor);
@@ -722,7 +907,7 @@ async function translateFromInput() {
 
         // Add highlight if we have stored selection range and text wasn't modified
         // Skip if translating from visual mode (that path handles its own highlighting)
-        if (pendingSelection && !isSelectionModified && !isTranslatingFromVisualMode) {
+        if (pendingSelection && pendingSelection.from && !isSelectionModified && !isTranslatingFromVisualMode) {
             // Use indexOf approach for consistent behavior with reload
             const content = editor.getValue();
             const textIndex = content.indexOf(pendingSelection.text);
@@ -1106,6 +1291,7 @@ function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     const apiKeyInput = document.getElementById('openai-api-key');
     const voiceInputCheckbox = document.getElementById('enable-voice-input');
+    const pdfRendererSelect = document.getElementById('pdf-renderer');
 
     // Load API key from appSettings
     apiKeyInput.value = appSettings.openaiApiKey || '';
@@ -1114,6 +1300,9 @@ function openSettingsModal() {
 
     // Load voice input setting
     voiceInputCheckbox.checked = appSettings.enableVoiceInput || false;
+
+    // Load PDF renderer setting
+    pdfRendererSelect.value = appSettings.pdfRenderer || 'pdfjs';
 
     // Open modal immediately, then populate language settings
     modal.classList.add('open');
@@ -1171,6 +1360,7 @@ async function saveSettings() {
     const targetLang = document.getElementById('target-lang').value;
     const apiKey = document.getElementById('openai-api-key').value.trim();
     const enableVoiceInput = document.getElementById('enable-voice-input').checked;
+    const pdfRenderer = document.getElementById('pdf-renderer').value;
     const saveBtn = document.getElementById('settings-save');
 
     saveBtn.disabled = true;
@@ -1180,7 +1370,11 @@ async function saveSettings() {
         // Save settings to appSettings (stored on disk)
         appSettings.openaiApiKey = apiKey;
         appSettings.enableVoiceInput = enableVoiceInput;
+        appSettings.pdfRenderer = pdfRenderer;
         await saveAppSettings();
+
+        // Update active PDF viewer reference
+        pdfViewer = (pdfRenderer === 'iframe') ? pdfIframeViewer : pdfJsViewer;
 
         // Save language config to backend
         const response = await fetch(API_BASE + '/api/config', {
