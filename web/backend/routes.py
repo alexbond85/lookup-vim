@@ -31,6 +31,7 @@ class ConfigUpdateRequest(BaseModel):
     source_lang: str
     target_lang: str
     openai_api_key: str | None = None
+    openai_model: str | None = None
 
 
 @router.post("/lookup")
@@ -327,8 +328,8 @@ async def update_config(request: ConfigUpdateRequest):
 
         print(f"Config saved to {config_path}")
 
-    # Reload the factory with new config
-    sessions.reload_factory()
+    # Reload the factory with new config (model may have changed)
+    sessions.reload_factory(model=request.openai_model)
 
     return {
         "source_lang": request.source_lang,

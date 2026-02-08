@@ -135,9 +135,10 @@ class SessionManager:
     def __init__(self):
         self._sessions: dict[str, Session] = {}
         self._production = _is_production()
+        self._model = self._load_model_from_settings()
         self._factory = ServiceFactory(
             cache_type="jsonl",
-            model="gpt-5.1",
+            model=self._model,
             production=self._production
         )
         # Load API key from settings on startup
@@ -154,11 +155,13 @@ class SessionManager:
             self._sessions[session_id] = Session(session_id, self._factory)
         return self._sessions[session_id]
 
-    def reload_factory(self):
+    def reload_factory(self, model: str | None = None):
         """Reload the factory with fresh config (after config changes)"""
+        if model:
+            self._model = model
         self._factory = ServiceFactory(
             cache_type="jsonl",
-            model="gpt-5.1",
+            model=self._model,
             production=self._production
         )
         # Clear existing sessions so they get recreated with new factory
@@ -167,6 +170,26 @@ class SessionManager:
     @property
     def factory(self) -> ServiceFactory:
         return self._factory
+
+    def _load_model_from_settings(self) -> str:
+        """Load OpenAI model from settings file on startup"""
+        import json
+        from lookup.config import load_config
+
+        default = "gpt-5.1"
+        try:
+            config = load_config(production=self._production)
+            settings_file = config.cache_dir / "app_settings.json"
+            if settings_file.exists():
+                with open(settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                    model = settings.get('openaiModel')
+                    if model:
+                        print(f"Model loaded from settings: {model}")
+                        return model
+        except Exception as e:
+            print(f"Error loading model from settings: {e}")
+        return default
 
     def _load_api_key_from_settings(self):
         """Load OpenAI API key from settings file on startup"""

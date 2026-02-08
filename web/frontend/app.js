@@ -1421,10 +1421,11 @@ function openSettingsModal() {
     const voiceInputCheckbox = document.getElementById('enable-voice-input');
     const pdfRendererSelect = document.getElementById('pdf-renderer');
 
-    // Load API key from appSettings
+    // Load API key and model from appSettings
     apiKeyInput.value = appSettings.openaiApiKey || '';
     apiKeyInput.type = 'password'; // Reset to hidden
     document.getElementById('toggle-api-key').classList.remove('showing');
+    document.getElementById('openai-model').value = appSettings.openaiModel || 'gpt-5.1';
 
     // Load voice input setting
     voiceInputCheckbox.checked = appSettings.enableVoiceInput || false;
@@ -1487,6 +1488,7 @@ async function saveSettings() {
     const sourceLang = document.getElementById('source-lang').value;
     const targetLang = document.getElementById('target-lang').value;
     const apiKey = document.getElementById('openai-api-key').value.trim();
+    const openaiModel = document.getElementById('openai-model').value.trim() || 'gpt-5.1';
     const enableVoiceInput = document.getElementById('enable-voice-input').checked;
     const pdfRenderer = document.getElementById('pdf-renderer').value;
     const saveBtn = document.getElementById('settings-save');
@@ -1497,6 +1499,7 @@ async function saveSettings() {
     try {
         // Save settings to appSettings (stored on disk)
         appSettings.openaiApiKey = apiKey;
+        appSettings.openaiModel = openaiModel;
         appSettings.enableVoiceInput = enableVoiceInput;
         appSettings.pdfRenderer = pdfRenderer;
         await saveAppSettings();
@@ -1513,7 +1516,8 @@ async function saveSettings() {
             body: JSON.stringify({
                 source_lang: sourceLang,
                 target_lang: targetLang,
-                openai_api_key: apiKey
+                openai_api_key: apiKey,
+                openai_model: openaiModel
             })
         });
 
